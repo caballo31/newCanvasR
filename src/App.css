@@ -7,6 +7,8 @@
     height: 100%;
     margin: 0;
     padding: 0;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
 
   * {
@@ -14,10 +16,17 @@
   }
 }
 
-.tldraw__editor {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+/* Eliminar cualquier scroll */
+body {
+  overflow: hidden;
+}
+
+/* Estilos para el canvas infinito */
+.canvas-container {
+  background: #f8fafc;
+  cursor: grab;
+}
+
+.canvas-container:active {
+  cursor: grabbing;
 }

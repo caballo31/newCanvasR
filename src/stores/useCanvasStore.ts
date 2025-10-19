@@ -14,16 +14,34 @@ const initialState: CanvasState = {
   },
 }
 
+// Función para migrar IDs viejos
+const migrateNodeIds = (nodes: Record<string, UINode>): Record<string, UINode> => {
+  const migrated: Record<string, UINode> = {}
+  
+  Object.values(nodes).forEach(node => {
+    const newId = node.id.startsWith('shape:') ? node.id : generateId()
+    migrated[newId] = { ...node, id: newId }
+  })
+  
+  return migrated
+}
+
 export const useCanvasStore = create<CanvasState & CanvasActions>()(
   persist(
     (set, get) => ({
       ...initialState,
 
       addNode: (node: UINode) => {
+        // Asegurar que el ID empiece con "shape:"
+        const validatedNode = {
+          ...node,
+          id: node.id.startsWith('shape:') ? node.id : generateId()
+        }
+        
         set((state) => ({
           nodes: {
             ...state.nodes,
-            [node.id]: node,
+            [validatedNode.id]: validatedNode,
           },
         }))
       },
@@ -131,7 +149,7 @@ export const useCanvasStore = create<CanvasState & CanvasActions>()(
         })
       },
 
-      setFolderView: (folderId: string, view: FolderView) => {
+      setFolderView: (folderId: string, view: 'compact' | 'window') => {
         set((state) => {
           const folder = state.nodes[folderId] as FolderNode | undefined
           if (!folder || folder.type !== 'folder') {
@@ -176,6 +194,20 @@ export const useCanvasStore = create<CanvasState & CanvasActions>()(
     {
       name: `${APP_NAME}-v${SCHEMA_VERSION}`,
       version: SCHEMA_VERSION,
+      migrate: (persistedState: any, version: number) => {
+        if (version === 0) {
+          // Migrar IDs viejos
+          if (persistedState.nodes) {
+            persistedState.nodes = migrateNodeIds(persistedState.nodes)
+          }
+        }
+        return persistedState
+      },
     }
   )
 )
+
+// Exponer store globalmente para debug (solo en desarrollo)
+if (import.meta.env.DEV) {
+  (window as any).__RISSPO_STORE = useCanvasStore
+}

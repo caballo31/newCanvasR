@@ -1,14 +1,11 @@
 import React from 'react'
-import { CanvasPage } from './components/canvas/CanvasPage'
-import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
+import RisspoCanvas from './components/canvas/RisspoCanvas'
 import './App.css'
 
 function App() {
-  useKeyboardShortcuts()
-
   return (
-    <div className="App">
-      <CanvasPage />
+    <div className="App" style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
+      <RisspoCanvas />
     </div>
   )
 }
