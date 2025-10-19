@@ -1,49 +1,163 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { Button } from '../ui/button'
-import { Type, Image, Code, Folder } from 'lucide-react'
-
-interface Node {
-  id: string
-  type: 'text' | 'image' | 'html' | 'folder'
-  x: number
-  y: number
-  width: number
-  height: number
-  content?: string
-  isSelected?: boolean
-  isDragging?: boolean
-}
+import { Type, FileImage, Code, Folder } from 'lucide-react'
+import { BaseNode, Viewport } from '../../types/canvas'
+import NodeFactory from './nodes/NodeFactory'
+import ResizeHandles from './nodes/ResizeHandles'
 
 const RisspoCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLDivElement>(null)
-  const [nodes, setNodes] = useState<Node[]>([])
-  const [viewport, setViewport] = useState({ x: 0, y: 0, scale: 1 })
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [nodes, setNodes] = useState<BaseNode[]>([])
+  const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, scale: 1 })
   const [isSpacePressed, setIsSpacePressed] = useState(false)
   const [isDraggingViewport, setIsDraggingViewport] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
   const [nodeDragStart, setNodeDragStart] = useState({ x: 0, y: 0, nodeX: 0, nodeY: 0 })
+  const [resizeHandle, setResizeHandle] = useState<string | null>(null)
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 })
 
   // Generar ID único
-  const generateId = () => `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  const generateId = (): string => `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
-  // Crear nuevo nodo
-  const createNode = (type: Node['type']) => {
-    const newNode: Node = {
+  // Abrir selector de archivos para nodo Media
+  const openFileSelector = (nodeId?: string): void => {
+    if (nodeId) {
+      setSelectedNode(nodeId)
+    }
+    fileInputRef.current?.click()
+  }
+
+  // Manejar selección de archivo
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    const file = files[0]
+    
+    if (selectedNode) {
+      // Actualizar nodo existente
+      setNodes(prev => prev.map(node => 
+        node.id === selectedNode 
+          ? { 
+              ...node, 
+              content: file.name,
+              file: file,
+              fileUrl: URL.createObjectURL(file)
+            }
+          : node
+      ))
+    } else {
+      // Crear nuevo nodo
+      createNode('media', file)
+    }
+    
+    // Limpiar input
+    e.target.value = ''
+  }
+
+  // Crear nuevo nodo - POSICIÓN CORREGIDA
+  const createNode = (type: BaseNode['type'], file?: File): void => {
+    // Calcular posición en el centro del viewport VISUAL
+    const viewportCenterX = window.innerWidth / 2 / viewport.scale - viewport.x / viewport.scale
+    const viewportCenterY = window.innerHeight / 2 / viewport.scale - viewport.y / viewport.scale
+    
+    const defaultSizes = {
+      text: { width: 200, height: 100 },
+      media: { width: 200, height: 150 },
+      html: { width: 250, height: 120 },
+      folder: { width: 300, height: 200 }
+    }
+
+    const newNode: BaseNode = {
       id: generateId(),
       type,
-      x: -viewport.x + (window.innerWidth / 2) - 100,
-      y: -viewport.y + (window.innerHeight / 2) - 50,
-      width: type === 'folder' ? 300 : type === 'html' ? 250 : type === 'image' ? 200 : 200,
-      height: type === 'folder' ? 200 : type === 'image' ? 150 : type === 'html' ? 120 : 100,
-      content: type === 'text' ? 'Texto' : type === 'image' ? 'Imagen' : type === 'html' ? 'HTML' : 'Carpeta'
+      x: viewportCenterX - defaultSizes[type].width / 2, // Centrado correcto
+      y: viewportCenterY - defaultSizes[type].height / 2, // Centrado correcto
+      width: defaultSizes[type].width,
+      height: defaultSizes[type].height,
+      content: type === 'text' ? 'Texto' : type === 'media' ? file?.name || 'Media' : type === 'html' ? 'HTML' : 'Carpeta',
+      file: file || null,
+      fileUrl: file ? URL.createObjectURL(file) : undefined
     }
     setNodes(prev => [...prev, newNode])
   }
 
+  // Duplicar nodo
+  const duplicateNode = (nodeId: string): void => {
+    const nodeToDuplicate = nodes.find(node => node.id === nodeId)
+    if (!nodeToDuplicate) return
+
+    const duplicatedNode: BaseNode = {
+      ...nodeToDuplicate,
+      id: generateId(),
+      x: nodeToDuplicate.x + 20,
+      y: nodeToDuplicate.y + 20,
+      isSelected: false,
+      isDragging: false
+    }
+    setNodes(prev => [...prev, duplicatedNode])
+  }
+
+  // Eliminar nodo
+  const deleteNode = (nodeId: string): void => {
+    const nodeToDelete = nodes.find(node => node.id === nodeId)
+    if (nodeToDelete?.fileUrl) {
+      URL.revokeObjectURL(nodeToDelete.fileUrl)
+    }
+    setNodes(prev => prev.filter(node => node.id !== nodeId))
+    if (selectedNode === nodeId) {
+      setSelectedNode(null)
+    }
+  }
+
+  // Editar contenido del nodo
+  const editNode = (nodeId: string, newContent: string): void => {
+    setNodes(prev => prev.map(node => 
+      node.id === nodeId ? { ...node, content: newContent } : node
+    ))
+  }
+
+  // Actualizar nodo
+  const updateNode = (nodeId: string, updates: Partial<BaseNode>): void => {
+    setNodes(prev => prev.map(node => 
+      node.id === nodeId ? { ...node, ...updates } : node
+    ))
+  }
+
+  // Drag & drop de archivos
+  const handleDragOver = (e: React.DragEvent): void => {
+    e.preventDefault()
+  }
+
+  const handleDrop = (e: React.DragEvent): void => {
+    e.preventDefault()
+    
+    const files = e.dataTransfer.files
+    if (files.length > 0) {
+      const file = files[0]
+      const dropX = (e.clientX - viewport.x) / viewport.scale
+      const dropY = (e.clientY - viewport.y) / viewport.scale
+      
+      const newNode: BaseNode = {
+        id: generateId(),
+        type: 'media',
+        x: dropX - 100,
+        y: dropY - 75,
+        width: 200,
+        height: 150,
+        content: file.name,
+        file: file,
+        fileUrl: URL.createObjectURL(file)
+      }
+      setNodes(prev => [...prev, newNode])
+    }
+  }
+
   // Manejar tecla espaciadora
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.code === 'Space') {
         e.preventDefault()
         setIsSpacePressed(true)
@@ -53,12 +167,11 @@ const RisspoCanvas: React.FC = () => {
       }
       
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNode) {
-        setNodes(prev => prev.filter(node => node.id !== selectedNode))
-        setSelectedNode(null)
+        deleteNode(selectedNode)
       }
     }
 
-    const handleKeyUp = (e: KeyboardEvent) => {
+    const handleKeyUp = (e: KeyboardEvent): void => {
       if (e.code === 'Space') {
         setIsSpacePressed(false)
         setIsDraggingViewport(false)
@@ -78,7 +191,7 @@ const RisspoCanvas: React.FC = () => {
   }, [selectedNode])
 
   // Manejar inicio de drag (viewport o nodo)
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handleMouseDown = (e: React.MouseEvent): void => {
     const target = e.target as HTMLElement
     
     // Si está presionada la barra espaciadora, mover viewport
@@ -90,6 +203,28 @@ const RisspoCanvas: React.FC = () => {
       })
       if (canvasRef.current) {
         canvasRef.current.style.cursor = 'grabbing'
+      }
+      return
+    }
+
+    // Si clickeó en un handle de resize
+    if (target.closest('[data-resize-handle]')) {
+      const handle = target.closest('[data-resize-handle]') as HTMLElement
+      const handleType = handle.dataset.resizeHandle
+      const nodeId = handle.closest('[data-node-id]')?.getAttribute('data-node-id')
+      
+      if (handleType && nodeId) {
+        const node = nodes.find(n => n.id === nodeId)
+        if (node) {
+          setResizeHandle(handleType)
+          setResizeStart({
+            x: e.clientX,
+            y: e.clientY,
+            width: node.width,
+            height: node.height
+          })
+          setSelectedNode(nodeId)
+        }
       }
       return
     }
@@ -112,7 +247,6 @@ const RisspoCanvas: React.FC = () => {
             nodeY: node.y
           })
           
-          // Marcar nodo como siendo arrastrado
           setNodes(prev => prev.map(n => 
             n.id === nodeId ? { ...n, isDragging: true } : n
           ))
@@ -125,7 +259,7 @@ const RisspoCanvas: React.FC = () => {
   }
 
   // Manejar movimiento del mouse
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handleMouseMove = (e: React.MouseEvent): void => {
     // Mover viewport si está en modo arrastre de viewport
     if (isDraggingViewport) {
       setViewport({
@@ -133,6 +267,53 @@ const RisspoCanvas: React.FC = () => {
         x: e.clientX - dragStart.x,
         y: e.clientY - dragStart.y
       })
+      return
+    }
+
+    // Resize del nodo
+    if (resizeHandle && selectedNode) {
+      const deltaX = (e.clientX - resizeStart.x) / viewport.scale
+      const deltaY = (e.clientY - resizeStart.y) / viewport.scale
+      
+      setNodes(prev => prev.map(node => {
+        if (node.id !== selectedNode) return node
+        
+        let newWidth = resizeStart.width
+        let newHeight = resizeStart.height
+        
+        switch (resizeHandle) {
+          case 'e':
+            newWidth = Math.max(50, resizeStart.width + deltaX)
+            break
+          case 'w':
+            newWidth = Math.max(50, resizeStart.width - deltaX)
+            break
+          case 's':
+            newHeight = Math.max(50, resizeStart.height + deltaY)
+            break
+          case 'n':
+            newHeight = Math.max(50, resizeStart.height - deltaY)
+            break
+          case 'se':
+            newWidth = Math.max(50, resizeStart.width + deltaX)
+            newHeight = Math.max(50, resizeStart.height + deltaY)
+            break
+          case 'sw':
+            newWidth = Math.max(50, resizeStart.width - deltaX)
+            newHeight = Math.max(50, resizeStart.height + deltaY)
+            break
+          case 'ne':
+            newWidth = Math.max(50, resizeStart.width + deltaX)
+            newHeight = Math.max(50, resizeStart.height - deltaY)
+            break
+          case 'nw':
+            newWidth = Math.max(50, resizeStart.width - deltaX)
+            newHeight = Math.max(50, resizeStart.height - deltaY)
+            break
+        }
+        
+        return { ...node, width: newWidth, height: newHeight }
+      }))
       return
     }
 
@@ -154,8 +335,9 @@ const RisspoCanvas: React.FC = () => {
   }
 
   // Manejar fin de drag
-  const handleMouseUp = () => {
+  const handleMouseUp = (): void => {
     setIsDraggingViewport(false)
+    setResizeHandle(null)
     
     // Finalizar arrastre de nodo
     if (selectedNode) {
@@ -172,7 +354,7 @@ const RisspoCanvas: React.FC = () => {
   }
 
   // Manejar zoom con rueda
-  const handleWheel = (e: React.WheelEvent) => {
+  const handleWheel = (e: React.WheelEvent): void => {
     e.preventDefault()
     const delta = -e.deltaY * 0.001
     const newScale = Math.min(Math.max(0.1, viewport.scale + delta), 3)
@@ -183,105 +365,92 @@ const RisspoCanvas: React.FC = () => {
     }))
   }
 
-  // Obtener color según tipo de nodo
-  const getNodeColor = (type: Node['type']) => {
-    switch (type) {
-      case 'text': return '#3b82f6'
-      case 'image': return '#10b981'
-      case 'html': return '#f59e0b'
-      case 'folder': return '#8b5cf6'
-      default: return '#6b7280'
-    }
-  }
-
-  // Renderizar nodos
-  const renderNodes = () => {
+  // Renderizar nodos a través del factory - CORREGIDO: contenedor unificado
+  const renderNodes = (): JSX.Element[] => {
     return nodes.map(node => {
       const isSelected = node.id === selectedNode
-      const color = getNodeColor(node.type)
-      
+      const nodeStyle = {
+        position: 'absolute' as const,
+        left: (node.x + viewport.x) * viewport.scale,
+        top: (node.y + viewport.y) * viewport.scale,
+        width: node.width * viewport.scale,
+        height: node.height * viewport.scale,
+        transform: `scale(${viewport.scale})`,
+        transformOrigin: 'top left'
+      }
+
       return (
         <div
           key={node.id}
-          data-node-id={node.id}
-          style={{
-            position: 'absolute',
-            left: (node.x + viewport.x) * viewport.scale,
-            top: (node.y + viewport.y) * viewport.scale,
-            width: node.width * viewport.scale,
-            height: node.height * viewport.scale,
-            backgroundColor: 'white',
-            border: `2px ${isSelected ? 'dashed #000' : 'solid ' + color}`,
-            borderRadius: '8px',
-            padding: '8px',
-            cursor: node.isDragging ? 'grabbing' : 'grab',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-            userSelect: 'none',
-            opacity: node.isDragging ? 0.8 : 1,
-            transition: node.isDragging ? 'none' : 'all 0.1s ease'
-          }}
+          style={nodeStyle}
         >
-          <div style={{
-            color: color,
-            fontWeight: '500',
-            fontSize: Math.max(12, 14 * viewport.scale) + 'px',
-            pointerEvents: 'none'
-          }}>
-            {node.content}
-          </div>
-          <div style={{
-            color: '#6b7280',
-            fontSize: Math.max(10, 12 * viewport.scale) + 'px',
-            marginTop: '4px',
-            pointerEvents: 'none'
-          }}>
-            {node.type.toUpperCase()}
-          </div>
+          <NodeFactory
+            node={node}
+            isSelected={isSelected}
+            viewport={viewport}
+            onSelect={setSelectedNode}
+            onUpdate={updateNode}
+            onDelete={deleteNode}
+            onDuplicate={duplicateNode}
+            onEdit={editNode}
+            onFileSelect={openFileSelector}
+          />
+          {isSelected && (
+            <ResizeHandles 
+              nodeId={node.id} 
+              isSelected={isSelected} 
+            />
+          )}
         </div>
       )
     })
   }
 
   return (
-    <div className="w-full h-full bg-gray-100 relative overflow-hidden">
+    <div className="w-full h-full bg-gray-50 relative overflow-hidden">
+      {/* Input oculto para archivos */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileSelect}
+        accept="image/*,video/*,audio/*"
+        className="hidden"
+      />
+
       {/* Toolbar minimalista */}
-      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 bg-white rounded-lg shadow-lg border border-gray-200 p-3">
-        <div className="flex items-center gap-2">
+      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 bg-white rounded-lg shadow-sm border border-gray-200 p-2">
+        <div className="flex items-center gap-1">
           <Button 
-            variant="outline" 
+            variant="ghost" 
             size="sm" 
             onClick={() => createNode('text')}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 hover:bg-gray-100"
           >
             <Type className="w-4 h-4" />
-            Texto
           </Button>
           <Button 
-            variant="outline" 
+            variant="ghost" 
             size="sm" 
-            onClick={() => createNode('image')}
-            className="flex items-center gap-2"
+            onClick={() => openFileSelector()}
+            className="flex items-center gap-2 hover:bg-gray-100"
           >
-            <Image className="w-4 h-4" />
-            Imagen
+            <FileImage className="w-4 h-4" />
           </Button>
           <Button 
-            variant="outline" 
+            variant="ghost" 
             size="sm" 
             onClick={() => createNode('html')}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 hover:bg-gray-100"
           >
             <Code className="w-4 h-4" />
-            HTML
           </Button>
           <Button 
-            variant="outline" 
+            variant="ghost" 
             size="sm" 
             onClick={() => createNode('folder')}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 hover:bg-gray-100"
           >
             <Folder className="w-4 h-4" />
-            Carpeta
           </Button>
         </div>
       </div>
@@ -295,6 +464,8 @@ const RisspoCanvas: React.FC = () => {
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
         onWheel={handleWheel}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
         style={{
           background: `
             linear-gradient(45deg, #f8fafc 25%, transparent 25%),
@@ -310,19 +481,14 @@ const RisspoCanvas: React.FC = () => {
         {renderNodes()}
       </div>
 
-      {/* Instrucciones */}
-      <div className="absolute bottom-4 left-4 text-sm text-gray-600 bg-white/90 rounded px-3 py-2 border border-gray-200">
-        <div>🖱️ Arrastra nodos para mover</div>
-        <div>🔍 Rueda para zoom</div>
-        <div>🎯 Click para seleccionar</div>
-        <div>⌫ Delete para eliminar</div>
-        <div className="font-semibold mt-1">🚀 Barra espaciadora + arrastre para mover vista</div>
+      {/* Instrucciones mínimas */}
+      <div className="absolute bottom-3 left-3 text-xs text-gray-500 bg-white/80 rounded px-2 py-1 border border-gray-200">
+        <div>Space + drag: mover vista • Wheel: zoom • Delete: eliminar</div>
       </div>
 
       {/* Estado actual */}
-      <div className="absolute top-4 right-4 text-xs text-gray-500 bg-white/90 rounded px-2 py-1">
-        <div>Zoom: {Math.round(viewport.scale * 100)}%</div>
-        <div>Modo: {isSpacePressed ? 'Mover Vista' : 'Seleccionar'}</div>
+      <div className="absolute top-3 right-3 text-xs text-gray-500 bg-white/80 rounded px-2 py-1 border border-gray-200">
+        Zoom: {Math.round(viewport.scale * 100)}%
       </div>
     </div>
   )
