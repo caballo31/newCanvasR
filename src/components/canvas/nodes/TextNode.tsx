@@ -1,13 +1,11 @@
 import React from 'react'
-import { NodeProps } from '../../../../types/canvas'
+import { NodeProps } from '../types/canvas'
 import { X, Copy, Edit } from 'lucide-react'
 
 const TextNode: React.FC<NodeProps> = ({ 
   node, 
   isSelected, 
-  viewport,
   onSelect,
-  onUpdate,
   onDelete,
   onDuplicate,
   onEdit
@@ -15,21 +13,7 @@ const TextNode: React.FC<NodeProps> = ({
   return (
     <div
       data-node-id={node.id}
-      style={{
-        position: 'absolute',
-        left: (node.x + viewport.x) * viewport.scale,
-        top: (node.y + viewport.y) * viewport.scale,
-        width: node.width * viewport.scale,
-        height: node.height * viewport.scale,
-        backgroundColor: 'white',
-        borderRadius: '8px',
-        cursor: node.isDragging ? 'grabbing' : 'grab',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-        userSelect: 'none',
-        opacity: node.isDragging ? 0.8 : 1,
-        transition: node.isDragging ? 'none' : 'all 0.15s ease',
-        border: '1px solid #e5e7eb'
-      }}
+      style={{ width: '100%', height: '100%', position: 'relative', userSelect: 'none' }}
       onClick={() => onSelect(node.id)}
     >
       {/* Menu contextual */}

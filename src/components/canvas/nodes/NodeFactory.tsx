@@ -1,5 +1,5 @@
 import React from 'react'
-import { BaseNode, Viewport, NodeProps } from '../../../../types/canvas'
+import { BaseNode, NodeProps } from '../types/canvas'
 import TextNode from './TextNode'
 import MediaNode from './MediaNode'
 import HTMLNode from './HTMLNode'
@@ -14,13 +14,13 @@ const NodeFactory: React.FC<NodeFactoryProps> = (props) => {
 
   switch (node.type) {
     case 'text':
-      return <TextNode node={node} {...nodeProps} />
+      return <TextNode {...(nodeProps as NodeProps)} node={node} />
     case 'media':
-      return <MediaNode node={node} {...nodeProps} />
+      return <MediaNode {...(nodeProps as NodeProps)} node={node} />
     case 'html':
-      return <HTMLNode node={node} {...nodeProps} />
+      return <HTMLNode {...(nodeProps as NodeProps)} node={node} />
     case 'folder':
-      return <FolderNode node={node} {...nodeProps} />
+      return <FolderNode {...(nodeProps as NodeProps)} node={node} />
     default:
       console.warn(`Unknown node type: ${node.type}`)
       return null

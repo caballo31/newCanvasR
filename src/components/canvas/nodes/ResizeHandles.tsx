@@ -1,46 +1,59 @@
-import React from 'react'
+import React from 'react';
 
 interface ResizeHandlesProps {
-  nodeId: string
-  isSelected: boolean
+  nodeId: string;
 }
 
-const ResizeHandles: React.FC<ResizeHandlesProps> = ({ nodeId, isSelected }) => {
-  if (!isSelected) return null
-
+const ResizeHandles: React.FC<ResizeHandlesProps> = () => {
   const handles = [
-    { position: 'n', style: { top: -4, left: '50%', transform: 'translateX(-50%)' } },
-    { position: 's', style: { bottom: -4, left: '50%', transform: 'translateX(-50%)' } },
-    { position: 'e', style: { right: -4, top: '50%', transform: 'translateY(-50%)' } },
-    { position: 'w', style: { left: -4, top: '50%', transform: 'translateY(-50%)' } },
-    { position: 'ne', style: { top: -4, right: -4 } },
-    { position: 'nw', style: { top: -4, left: -4 } },
-    { position: 'se', style: { bottom: -4, right: -4 } },
-    { position: 'sw', style: { bottom: -4, left: -4 } },
-  ]
+    { position: 'nw', cursor: 'nw-resize' },
+    { position: 'n', cursor: 'n-resize' },
+    { position: 'ne', cursor: 'ne-resize' },
+    { position: 'w', cursor: 'w-resize' },
+    { position: 'e', cursor: 'e-resize' },
+    { position: 'sw', cursor: 'sw-resize' },
+    { position: 's', cursor: 's-resize' },
+    { position: 'se', cursor: 'se-resize' }
+  ];
+
+  const getHandleStyle = (position: string): React.CSSProperties => {
+    const baseStyle: React.CSSProperties = {
+      position: 'absolute',
+      width: '8px',
+      height: '8px',
+      backgroundColor: 'white',
+      border: '2px solid #2196f3',
+      borderRadius: '50%',
+      pointerEvents: 'all',
+      cursor: handles.find(h => h.position === position)?.cursor || 'default',
+      zIndex: 1000,
+    };
+
+    switch (position) {
+      case 'nw': return { ...baseStyle, left: '-4px', top: '-4px' };
+      case 'n': return { ...baseStyle, left: '50%', top: '-4px', transform: 'translateX(-50%)' };
+      case 'ne': return { ...baseStyle, right: '-4px', top: '-4px' };
+      case 'w': return { ...baseStyle, left: '-4px', top: '50%', transform: 'translateY(-50%)' };
+      case 'e': return { ...baseStyle, right: '-4px', top: '50%', transform: 'translateY(-50%)' };
+      case 'sw': return { ...baseStyle, left: '-4px', bottom: '-4px' };
+      case 's': return { ...baseStyle, left: '50%', bottom: '-4px', transform: 'translateX(-50%)' };
+      case 'se': return { ...baseStyle, right: '-4px', bottom: '-4px' };
+      default: return baseStyle;
+    }
+  };
 
   return (
-    <>
-      {handles.map(({ position, style }) => (
+    <div className="absolute inset-0 pointer-events-none">
+      {handles.map(({ position }) => (
         <div
           key={position}
           data-resize-handle={position}
-          data-node-id={nodeId}
-          style={{
-            position: 'absolute',
-            width: 8,
-            height: 8,
-            backgroundColor: 'white',
-            border: '1px solid #3b82f6',
-            borderRadius: '1px',
-            cursor: `${position}-resize`,
-            zIndex: 20, // Mayor z-index para estar sobre el nodo
-            ...style
-          }}
+          style={getHandleStyle(position)}
+          className="resize-handle"
         />
       ))}
-    </>
-  )
-}
+    </div>
+  );
+};
 
-export default ResizeHandles
+export default ResizeHandles;

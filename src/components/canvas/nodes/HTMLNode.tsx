@@ -1,13 +1,11 @@
 import React from 'react'
-import { NodeProps } from '../../../../types/canvas'
+import { NodeProps } from '../types/canvas'
 import { Code, X, Copy, Edit } from 'lucide-react'
 
 const HTMLNode: React.FC<NodeProps> = ({ 
   node, 
   isSelected, 
-  viewport,
   onSelect,
-  onUpdate,
   onDelete,
   onDuplicate,
   onEdit
@@ -15,21 +13,7 @@ const HTMLNode: React.FC<NodeProps> = ({
   return (
     <div
       data-node-id={node.id}
-      style={{
-        position: 'absolute',
-        left: (node.x + viewport.x) * viewport.scale,
-        top: (node.y + viewport.y) * viewport.scale,
-        width: node.width * viewport.scale,
-        height: node.height * viewport.scale,
-        backgroundColor: 'white',
-        borderRadius: '8px',
-        cursor: node.isDragging ? 'grabbing' : 'grab',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-        userSelect: 'none',
-        opacity: node.isDragging ? 0.8 : 1,
-        transition: node.isDragging ? 'none' : 'all 0.15s ease',
-        border: '1px solid #e5e7eb'
-      }}
+      style={{ width: '100%', height: '100%', position: 'relative', userSelect: 'none' }}
       onClick={() => onSelect(node.id)}
     >
       {/* Menu contextual */}
@@ -72,7 +56,7 @@ const HTMLNode: React.FC<NodeProps> = ({
       )}
 
       {/* Contenido */}
-      <div className="w-full h-full flex items-center justify-center p-4 bg-gray-50 rounded-lg">
+      <div className="w-full h-full flex items-center justify-center p-4 bg-gray-50 rounded-lg" style={{ pointerEvents: 'none' }}>
         <div className="text-center">
           <Code size={24} className="text-gray-400 mb-2 mx-auto" />
           <div className="text-sm text-gray-600">

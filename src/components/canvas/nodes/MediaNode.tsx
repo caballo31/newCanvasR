@@ -1,13 +1,11 @@
 import React from 'react'
-import { NodeProps } from '../../../../types/canvas'
+import { NodeProps } from '../types/canvas'
 import { FileImage, X, Copy } from 'lucide-react'
 
 const MediaNode: React.FC<NodeProps> = ({ 
   node, 
   isSelected, 
-  viewport,
   onSelect,
-  onUpdate,
   onDelete,
   onDuplicate,
   onFileSelect
@@ -21,21 +19,7 @@ const MediaNode: React.FC<NodeProps> = ({
   return (
     <div
       data-node-id={node.id}
-      style={{
-        position: 'absolute',
-        left: (node.x + viewport.x) * viewport.scale,
-        top: (node.y + viewport.y) * viewport.scale,
-        width: node.width * viewport.scale,
-        height: node.height * viewport.scale,
-        backgroundColor: node.fileUrl ? 'transparent' : 'white',
-        borderRadius: node.fileUrl ? '0px' : '8px',
-        cursor: node.isDragging ? 'grabbing' : 'grab',
-        boxShadow: node.fileUrl ? 'none' : '0 2px 8px rgba(0,0,0,0.08)',
-        userSelect: 'none',
-        opacity: node.isDragging ? 0.8 : 1,
-        transition: node.isDragging ? 'none' : 'all 0.15s ease',
-        border: node.fileUrl ? 'none' : '1px solid #e5e7eb'
-      }}
+      style={{ width: '100%', height: '100%', position: 'relative', userSelect: 'none' }}
       onClick={() => onSelect(node.id)}
     >
       {/* Menu contextual para media con archivo */}
@@ -66,7 +50,7 @@ const MediaNode: React.FC<NodeProps> = ({
 
       {/* Contenido */}
       {node.fileUrl ? (
-        <div className="w-full h-full" onClick={handleMediaClick}>
+        <div className="w-full h-full" onClick={handleMediaClick} style={{ pointerEvents: 'none' }}>
           {node.file?.type.startsWith('image/') && (
             <img 
               src={node.fileUrl} 

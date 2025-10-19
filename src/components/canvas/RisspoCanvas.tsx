@@ -1,7 +1,7 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react'
+import React, { useRef, useEffect, useState } from 'react'
 import { Button } from '../ui/button'
 import { Type, FileImage, Code, Folder } from 'lucide-react'
-import { BaseNode, Viewport } from '../../types/canvas'
+import { BaseNode, Viewport } from './types/canvas'
 import NodeFactory from './nodes/NodeFactory'
 import ResizeHandles from './nodes/ResizeHandles'
 
@@ -270,7 +270,7 @@ const RisspoCanvas: React.FC = () => {
       return
     }
 
-    // Resize del nodo
+    // Resize del nodo - CORREGIDO: aplicar transformación de viewport
     if (resizeHandle && selectedNode) {
       const deltaX = (e.clientX - resizeStart.x) / viewport.scale
       const deltaY = (e.clientY - resizeStart.y) / viewport.scale
@@ -280,6 +280,8 @@ const RisspoCanvas: React.FC = () => {
         
         let newWidth = resizeStart.width
         let newHeight = resizeStart.height
+        let newX = node.x
+        let newY = node.y
         
         switch (resizeHandle) {
           case 'e':
@@ -287,12 +289,14 @@ const RisspoCanvas: React.FC = () => {
             break
           case 'w':
             newWidth = Math.max(50, resizeStart.width - deltaX)
+            newX = node.x + deltaX
             break
           case 's':
             newHeight = Math.max(50, resizeStart.height + deltaY)
             break
           case 'n':
             newHeight = Math.max(50, resizeStart.height - deltaY)
+            newY = node.y + deltaY
             break
           case 'se':
             newWidth = Math.max(50, resizeStart.width + deltaX)
@@ -301,18 +305,22 @@ const RisspoCanvas: React.FC = () => {
           case 'sw':
             newWidth = Math.max(50, resizeStart.width - deltaX)
             newHeight = Math.max(50, resizeStart.height + deltaY)
+            newX = node.x + deltaX
             break
           case 'ne':
             newWidth = Math.max(50, resizeStart.width + deltaX)
             newHeight = Math.max(50, resizeStart.height - deltaY)
+            newY = node.y + deltaY
             break
           case 'nw':
             newWidth = Math.max(50, resizeStart.width - deltaX)
             newHeight = Math.max(50, resizeStart.height - deltaY)
+            newX = node.x + deltaX
+            newY = node.y + deltaY
             break
         }
         
-        return { ...node, width: newWidth, height: newHeight }
+        return { ...node, width: newWidth, height: newHeight, x: newX, y: newY }
       }))
       return
     }
@@ -334,7 +342,7 @@ const RisspoCanvas: React.FC = () => {
     }
   }
 
-  // Manejar fin de drag
+  // Manejar fin de drag - CORREGIDO: cursor siempre se restaura a default
   const handleMouseUp = (): void => {
     setIsDraggingViewport(false)
     setResizeHandle(null)
@@ -349,7 +357,7 @@ const RisspoCanvas: React.FC = () => {
     setNodeDragStart({ x: 0, y: 0, nodeX: 0, nodeY: 0 })
     
     if (canvasRef.current) {
-      canvasRef.current.style.cursor = isSpacePressed ? 'grab' : 'default'
+      canvasRef.current.style.cursor = 'default'
     }
   }
 
@@ -365,42 +373,40 @@ const RisspoCanvas: React.FC = () => {
     }))
   }
 
-  // Renderizar nodos a través del factory - CORREGIDO: contenedor unificado
+  // Actualiza el renderizado de nodos
   const renderNodes = (): JSX.Element[] => {
     return nodes.map(node => {
       const isSelected = node.id === selectedNode
-      const nodeStyle = {
-        position: 'absolute' as const,
-        left: (node.x + viewport.x) * viewport.scale,
-        top: (node.y + viewport.y) * viewport.scale,
-        width: node.width * viewport.scale,
-        height: node.height * viewport.scale,
-        transform: `scale(${viewport.scale})`,
-        transformOrigin: 'top left'
-      }
 
+      // ÚNICO wrapper que posiciona el nodo en el espacio del canvas (transform aplicado al padre)
       return (
         <div
           key={node.id}
-          style={nodeStyle}
+          data-node-id={node.id}
+          style={{
+            position: 'absolute',
+            left: `${node.x}px`,
+            top: `${node.y}px`,
+            width: `${node.width}px`,
+            height: `${node.height}px`,
+            userSelect: 'none',
+          }}
         >
-          <NodeFactory
-            node={node}
-            isSelected={isSelected}
-            viewport={viewport}
-            onSelect={setSelectedNode}
-            onUpdate={updateNode}
-            onDelete={deleteNode}
-            onDuplicate={duplicateNode}
-            onEdit={editNode}
-            onFileSelect={openFileSelector}
-          />
-          {isSelected && (
-            <ResizeHandles 
-              nodeId={node.id} 
-              isSelected={isSelected} 
+          {/* contenedor relativo: contenido del nodo debe usar solo width/height 100% y position:relative */}
+          <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+            <NodeFactory
+              node={node}
+              isSelected={isSelected}
+              viewport={viewport}
+              onSelect={setSelectedNode}
+              onUpdate={updateNode}
+              onDelete={deleteNode}
+              onDuplicate={duplicateNode}
+              onEdit={editNode}
+              onFileSelect={openFileSelector}
             />
-          )}
+            {isSelected && <ResizeHandles nodeId={node.id} />}
+          </div>
         </div>
       )
     })
@@ -466,29 +472,18 @@ const RisspoCanvas: React.FC = () => {
         onWheel={handleWheel}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
-        style={{
-          background: `
-            linear-gradient(45deg, #f8fafc 25%, transparent 25%),
-            linear-gradient(-45deg, #f8fafc 25%, transparent 25%),
-            linear-gradient(45deg, transparent 75%, #f8fafc 75%),
-            linear-gradient(-45deg, transparent 75%, #f8fafc 75%)
-          `,
-          backgroundSize: '20px 20px',
-          backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px',
-          cursor: isSpacePressed ? 'grab' : 'default'
-        }}
       >
-        {renderNodes()}
-      </div>
-
-      {/* Instrucciones mínimas */}
-      <div className="absolute bottom-3 left-3 text-xs text-gray-500 bg-white/80 rounded px-2 py-1 border border-gray-200">
-        <div>Space + drag: mover vista • Wheel: zoom • Delete: eliminar</div>
-      </div>
-
-      {/* Estado actual */}
-      <div className="absolute top-3 right-3 text-xs text-gray-500 bg-white/80 rounded px-2 py-1 border border-gray-200">
-        Zoom: {Math.round(viewport.scale * 100)}%
+        <div 
+          style={{
+            position: 'absolute',
+            width: '100%',
+            height: '100%',
+            transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`,
+            transformOrigin: '0 0'
+          }}
+        >
+          {renderNodes()}
+        </div>
       </div>
     </div>
   )

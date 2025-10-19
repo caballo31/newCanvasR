@@ -10,6 +10,9 @@ export interface BaseNode {
   fileUrl?: string
   isSelected?: boolean
   isDragging?: boolean
+  // Folder specific
+  children?: string[]
+  view?: 'compact' | 'window'
 }
 
 export interface Viewport {

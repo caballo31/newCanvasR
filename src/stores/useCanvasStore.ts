@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { CanvasState, CanvasActions, UINode, FolderNode } from '../types/canvas'
+import { CanvasState, CanvasActions, UINode, FolderNode } from '../components/canvas/types/canvas'
 import { SCHEMA_VERSION, APP_NAME } from '../lib/constants'
 import { generateId } from '../lib/utils'
 
