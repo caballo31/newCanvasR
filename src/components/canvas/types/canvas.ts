@@ -6,6 +6,7 @@ export interface BaseNode {
   width: number
   height: number
   content?: string
+  title?: string
   file?: File | null
   fileUrl?: string
   isSelected?: boolean

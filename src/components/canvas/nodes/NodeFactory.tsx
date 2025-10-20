@@ -9,6 +9,8 @@ interface NodeFactoryProps extends Omit<NodeProps, 'node'> {
   node: BaseNode
   allNodes?: BaseNode[]
   onAddToFolder?: (childId: string, folderId: string) => void
+  externalEditing?: boolean
+  onEditingDone?: () => void
 }
 
 const NodeFactory: React.FC<NodeFactoryProps> = (props) => {
@@ -62,7 +64,7 @@ const NodeFactory: React.FC<NodeFactoryProps> = (props) => {
           </div>
         )
       }
-      return <TextNode {...(nodeProps as NodeProps)} node={node} />
+      return <TextNode {...(nodeProps as NodeProps)} node={node} externalEditing={props.externalEditing} onEditingDone={props.onEditingDone} />
     case 'media':
       if (!node.view || node.view === 'compact') {
         return (

@@ -20,6 +20,9 @@ const RisspoCanvas: React.FC = () => {
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 })
   // which node had its header clicked (shows resize handles / enables dragging)
   const [headerActive, setHeaderActive] = useState<string | null>(null)
+  const [editingNode, setEditingNode] = useState<string | null>(null)
+  const [pendingEditNode, setPendingEditNode] = useState<string | null>(null)
+  const [titleEdit, setTitleEdit] = useState<{ id: string | null; value: string }>({ id: null, value: '' })
 
   // Generar ID único
   const generateId = (): string => `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
@@ -81,6 +84,7 @@ const RisspoCanvas: React.FC = () => {
       width: defaultSizes[type].width,
       height: defaultSizes[type].height,
       content: type === 'text' ? 'Texto' : type === 'media' ? file?.name || 'Media' : type === 'html' ? 'HTML' : 'Carpeta',
+      title: type === 'text' ? 'Texto' : type === 'media' ? file?.name || 'Media' : type === 'html' ? 'HTML' : 'Carpeta',
       file: file || null,
       fileUrl: file ? URL.createObjectURL(file) : undefined,
       view: 'compact'
@@ -214,6 +218,21 @@ const RisspoCanvas: React.FC = () => {
     }
   }, [selectedNode])
 
+  // If we asked to start editing a node but it was compact and we toggled it to window,
+  // wait for the node to be in 'window' view before activating edit mode.
+  useEffect(() => {
+    if (!pendingEditNode) return
+    const node = nodes.find(n => n.id === pendingEditNode)
+    if (node && node.view === 'window') {
+      setEditingNode(pendingEditNode)
+      setPendingEditNode(null)
+    }
+  }, [nodes, pendingEditNode])
+
+  const updateTitle = (nodeId: string, newTitle: string) => {
+    updateNode(nodeId, { title: newTitle })
+  }
+
   // Manejar inicio de drag (viewport o nodo)
   const handleMouseDown = (e: React.MouseEvent): void => {
     const target = e.target as HTMLElement
@@ -275,14 +294,22 @@ const RisspoCanvas: React.FC = () => {
       return
     }
 
-    // If clicked inside a node but not on header: just select (allow internal interactions)
+    // If clicked inside a node but not on header: select; if compact, start drag as before
     if (target.closest('[data-node-id]')) {
       const nodeElement = target.closest('[data-node-id]') as HTMLElement
       const nodeId = nodeElement.dataset.nodeId
       if (nodeId) {
+        const node = nodes.find(n => n.id === nodeId)
         setSelectedNode(nodeId)
-        // do not start drag; header must be used to drag
-        setHeaderActive(null)
+        // compact nodes: dragging allowed from body
+        if (node && node.view !== 'window' && node.view !== 'fullscreen') {
+          setHeaderActive(null)
+          setNodeDragStart({ x: e.clientX, y: e.clientY, nodeX: node.x, nodeY: node.y })
+          setNodes(prev => prev.map(n => n.id === nodeId ? { ...n, isDragging: true } : n))
+        } else {
+          // window/fullscreen: header is required for drag
+          setHeaderActive(null)
+        }
       }
       return
     }
@@ -433,7 +460,15 @@ const RisspoCanvas: React.FC = () => {
     const node = nodes.find(n => n.id === nodeId)
     if (!node) return
     if (node.view === 'compact' || !node.view) {
-      updateNode(nodeId, { view: 'window' })
+      // enlarge defaults when switching from compact to window
+      const windowDefaults: Record<string, { width: number, height: number }> = {
+        text: { width: 520, height: 380 },
+        media: { width: 640, height: 420 },
+        html: { width: 520, height: 360 },
+        folder: { width: 700, height: 480 }
+      }
+      const dims = windowDefaults[node.type] || { width: 520, height: 360 }
+      updateNode(nodeId, { view: 'window', width: dims.width, height: dims.height })
     } else if (node.view === 'window') {
       updateNode(nodeId, { view: 'fullscreen' })
     }
@@ -457,7 +492,13 @@ const RisspoCanvas: React.FC = () => {
         <div
           key={node.id}
           data-node-id={node.id}
-          onDoubleClick={() => toggleToWindow(node.id)}
+          onDoubleClick={(e) => {
+            // only expand compact nodes when double-clicking the body
+            if (isCompact) {
+              e.stopPropagation()
+              toggleToWindow(node.id)
+            }
+          }}
           style={{
             position: 'absolute',
             left: `${node.x}px`,
@@ -467,15 +508,63 @@ const RisspoCanvas: React.FC = () => {
             userSelect: 'none',
           }}
         >
-          {/* contenedor relativo: contenido del nodo debe usar solo width/height 100% y position:relative */}
-          <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-            {/* Header: visible bar used as the only drag handle and to show filename */}
-            <div data-drag-handle style={{ position: 'absolute', left: 8, right: 8, top: 8, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 8px', background: '#fff', borderRadius: 8, boxShadow: '0 1px 0 rgba(0,0,0,0.06)', zIndex: 25, cursor: 'grab', userSelect: 'none' }}>
-              <div style={{ fontSize: 13, color: '#111', fontWeight: 500 }}>{node.content}</div>
-              <div style={{ width: 24, height: 24 }} />
-            </div>
+          {/* contenedor relativo: ahora actúa como la "ventana" cuando no es compact */}
+          <div style={{
+            position: 'relative',
+            width: '100%',
+            height: '100%',
+            ...(isCompact ? {} : { background: '#fff', borderRadius: 12, border: '1px solid rgba(15,23,42,0.06)', boxShadow: '0 8px 22px rgba(15,23,42,0.04)' })
+          }}>
+            {/* Header: visible bar used as the only drag handle and to show filename (only for window mode) */}
+            {!isCompact && (
+              // header is visually part of the container now (no separate background/shadow)
+              <div data-drag-handle style={{ position: 'absolute', left: 12, right: 12, top: 12, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 10px', background: 'transparent', borderRadius: 0, boxShadow: 'none', zIndex: 25, cursor: 'grab', userSelect: 'none', borderBottom: '1px solid rgba(15,23,42,0.06)' }} onDoubleClick={(e) => {
+                e.stopPropagation()
+                // If double-click happened on the title element, open title edit.
+                const target = e.target as HTMLElement
+                if (target.closest('[data-title]')) {
+                  setTitleEdit({ id: node.id, value: (node.title || node.content || '') as string })
+                  return
+                }
+                // Otherwise, if in window view, enter fullscreen
+                if (node.view === 'window') {
+                  setFullscreen(node.id)
+                }
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  {/* subtle grip */}
+                  <div style={{ width: 10, height: 10, borderRadius: 2, display: 'grid', gridTemplateColumns: 'repeat(2,3px)', gap: 2, alignItems: 'center' }}>
+                    <span style={{ width: 3, height: 3, background: '#CBD5E1', borderRadius: 2, display: 'block' }} />
+                    <span style={{ width: 3, height: 3, background: '#CBD5E1', borderRadius: 2, display: 'block' }} />
+                    <span style={{ width: 3, height: 3, background: '#CBD5E1', borderRadius: 2, display: 'block' }} />
+                    <span style={{ width: 3, height: 3, background: '#CBD5E1', borderRadius: 2, display: 'block' }} />
+                  </div>
+                  {/* title is separate from content */}
+                  <div style={{ fontSize: 13, color: '#111', fontWeight: 500 }}>
+                    {titleEdit.id === node.id ? (
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <input autoFocus value={titleEdit.value} onChange={(e) => setTitleEdit({ id: node.id, value: e.target.value })} onPointerDown={(e) => e.stopPropagation()} style={{ fontSize: 13, padding: '6px 10px', borderRadius: 8, border: '1px solid #e5e7eb' }} />
+                        <button onClick={() => { updateTitle(node.id, titleEdit.value); setTitleEdit({ id: null, value: '' }) }} onPointerDown={(e) => e.stopPropagation()} className="px-3 py-1 text-white" style={{ background: '#F68C1E', borderRadius: 8, border: 'none' }}>Save</button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span data-title>{node.title || node.content}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <button type="button" onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); setCompact(node.id); setSelectedNode(node.id) }} title="Minimizar" className="p-2 rounded-sm hover:bg-gray-100" aria-label="Minimizar">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 12h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
+                  </button>
+                  <button type="button" onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); setFullscreen(node.id); setSelectedNode(node.id) }} title="Maximizar" className="p-2 rounded-sm hover:bg-gray-100" aria-label="Maximizar">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" strokeWidth="1.6"/></svg>
+                  </button>
+                </div>
+              </div>
+            )}
 
-            <div style={{ position: 'absolute', left: 0, right: 0, top: !isCompact ? 44 : 0, bottom: 0, overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', left: 0, right: 0, top: !isCompact ? 56 : 0, bottom: 0, overflow: 'hidden', padding: !isCompact ? 12 : 0 }}>
               <NodeFactory
                 node={node}
                 isSelected={isSelected}
@@ -486,6 +575,8 @@ const RisspoCanvas: React.FC = () => {
                 onDuplicate={duplicateNode}
                 onEdit={editNode}
                 onFileSelect={openFileSelector}
+                externalEditing={editingNode === node.id}
+                onEditingDone={() => setEditingNode(null)}
                 allNodes={nodes}
                 onAddToFolder={(childId: string, folderId: string) => {
                   updateNode(childId, { parent: folderId })
@@ -639,17 +730,19 @@ const RisspoCanvas: React.FC = () => {
                   <button type="button" onPointerDown={(e) => { e.stopPropagation() }} onMouseDown={(e) => { e.stopPropagation() }} onClick={(e) => { e.stopPropagation(); duplicateNode(node.id) }} title="Duplicar" className="p-2 rounded-md hover:bg-gray-700 text-white flex items-center justify-center" aria-label="Duplicar">
                     <Copy size={14} />
                   </button>
-                  <button type="button" onPointerDown={(e) => { e.stopPropagation() }} onMouseDown={(e) => { e.stopPropagation() }} onClick={(e) => { e.stopPropagation(); const newContent = prompt('Editar:', node.content); if (newContent !== null) editNode(node.id, newContent) }} title="Editar" className="p-2 rounded-md hover:bg-gray-700 text-white flex items-center justify-center" aria-label="Editar">
-                    <Edit size={14} />
-                  </button>
-                  <div style={{ width: 8 }} />
-                  {/* minimize then expand on the right (use simple inline SVGs matching the toolbar tone) */}
-                  <button type="button" onPointerDown={(e) => { e.stopPropagation() }} onMouseDown={(e) => { e.stopPropagation() }} onClick={(e) => { e.stopPropagation(); setCompact(node.id); setSelectedNode(node.id) }} title="Minimizar" className="p-2 rounded-md hover:bg-gray-700 text-white flex items-center justify-center" aria-label="Minimizar">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 12h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
-                  </button>
-                  <button type="button" onPointerDown={(e) => { e.stopPropagation() }} onMouseDown={(e) => { e.stopPropagation() }} onClick={(e) => { e.stopPropagation(); setFullscreen(node.id); setSelectedNode(node.id) }} title="Maximizar" className="p-2 rounded-md hover:bg-gray-700 text-white flex items-center justify-center" aria-label="Maximizar">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" strokeWidth="1.8"/></svg>
-                  </button>
+                          <button type="button" onPointerDown={(e) => { e.stopPropagation() }} onMouseDown={(e) => { e.stopPropagation() }} onClick={(e) => { e.stopPropagation();
+                            // if compact, expand to window first then enter edit mode for text nodes
+                            if (node.view === 'compact') {
+                              toggleToWindow(node.id)
+                              // set pending so effect will activate editing once view becomes 'window'
+                              setPendingEditNode(node.id)
+                            } else {
+                              setEditingNode(node.id)
+                            }
+                          }} title="Editar" className="p-2 rounded-md hover:bg-gray-700 text-white flex items-center justify-center" aria-label="Editar">
+                            <Edit size={14} />
+                          </button>
+                  {/* header contains minimize/expand controls now; toolbar no longer duplicates them */}
                 </div>
             </div>
           )
@@ -659,16 +752,58 @@ const RisspoCanvas: React.FC = () => {
         {nodes.filter(n => n.view === 'fullscreen').map(fsNode => (
           <div key={fsNode.id} style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ width: '90vw', height: '90vh', background: 'white', borderRadius: 8, overflow: 'hidden', position: 'relative' }}>
-              <div style={{ height: 36, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px', borderBottom: '1px solid #eee' }}>
-                <div style={{ fontWeight: 600 }}>{fsNode.content}</div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={() => setCompact(fsNode.id)} title="Minimizar">_</button>
-                  <button onClick={() => setWindow(fsNode.id)} title="Restaurar">▢</button>
-                  <button onClick={() => setWindow(fsNode.id)}>Cerrar</button>
+              <div style={{ height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 12px 0 12px', borderBottom: '1px solid #eee' }} onDoubleClick={(e) => {
+                e.stopPropagation()
+                const target = e.target as HTMLElement
+                if (target.closest('[data-title]')) {
+                  setTitleEdit({ id: fsNode.id, value: (fsNode.title || fsNode.content || '') as string })
+                  return
+                }
+                // clicking elsewhere in fullscreen header does nothing special
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 2, display: 'grid', gridTemplateColumns: 'repeat(2,3px)', gap: 2 }}>
+                    <span style={{ width: 3, height: 3, background: '#CBD5E1', borderRadius: 2, display: 'block' }} />
+                    <span style={{ width: 3, height: 3, background: '#CBD5E1', borderRadius: 2, display: 'block' }} />
+                    <span style={{ width: 3, height: 3, background: '#CBD5E1', borderRadius: 2, display: 'block' }} />
+                    <span style={{ width: 3, height: 3, background: '#CBD5E1', borderRadius: 2, display: 'block' }} />
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 600 }}>
+                    {titleEdit.id === fsNode.id ? (
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <input autoFocus value={titleEdit.value} onChange={(e) => setTitleEdit({ id: fsNode.id, value: e.target.value })} onPointerDown={(e) => e.stopPropagation()} style={{ fontSize: 14, padding: '6px 10px', borderRadius: 8, border: '1px solid #e5e7eb' }} />
+                        <button onClick={() => { updateTitle(fsNode.id, titleEdit.value); setTitleEdit({ id: null, value: '' }) }} onPointerDown={(e) => e.stopPropagation()} className="px-3 py-1 text-white" style={{ background: '#F68C1E', borderRadius: 8, border: 'none' }}>Save</button>
+                      </div>
+                    ) : (
+                      <span data-title>{fsNode.title || fsNode.content}</span>
+                    )}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <button onClick={(e) => { e.stopPropagation(); setSelectedNode(fsNode.id); setEditingNode(fsNode.id) }} title="Editar" style={{ background: 'transparent', border: 'none', padding: 6, cursor: 'pointer' }}>
+                    <Edit size={16} />
+                  </button>
+                  <button type="button" onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} onClick={() => setWindow(fsNode.id)} title="Restaurar" className="p-2 rounded-sm hover:bg-gray-100" aria-label="Restaurar">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 12h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
+                  </button>
+                  {/* Close (X) button - minimize/close from fullscreen */}
+                  <button onClick={() => setCompact(fsNode.id)} title="Cerrar" style={{ background: 'transparent', border: 'none', padding: 6, cursor: 'pointer', fontSize: 16 }}>✕</button>
                 </div>
               </div>
-              <div style={{ position: 'absolute', left: 0, right: 0, top: 36, bottom: 0 }}>
-                <NodeFactory node={fsNode} isSelected={selectedNode === fsNode.id} viewport={viewport} onSelect={setSelectedNode} onUpdate={updateNode} onDelete={deleteNode} onDuplicate={duplicateNode} onEdit={editNode} onFileSelect={openFileSelector} />
+              <div style={{ position: 'absolute', left: 0, right: 0, top: 56, bottom: 0 }}>
+                <NodeFactory
+                  node={fsNode}
+                  isSelected={selectedNode === fsNode.id}
+                  viewport={viewport}
+                  onSelect={setSelectedNode}
+                  onUpdate={updateNode}
+                  onDelete={deleteNode}
+                  onDuplicate={duplicateNode}
+                  onEdit={editNode}
+                  onFileSelect={openFileSelector}
+                  externalEditing={editingNode === fsNode.id}
+                  onEditingDone={() => setEditingNode(null)}
+                />
               </div>
             </div>
           </div>

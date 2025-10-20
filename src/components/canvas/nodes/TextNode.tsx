@@ -1,10 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { NodeProps } from '../types/canvas'
 
-const TextNode: React.FC<NodeProps> = ({ 
+interface TextNodeExProps extends NodeProps {
+  externalEditing?: boolean
+  onEditingDone?: () => void
+}
+
+const TextNode: React.FC<TextNodeExProps> = ({ 
   node, 
   onSelect,
-  onEdit
+  onEdit,
+  externalEditing,
+  onEditingDone
 }) => {
   const [isEditing, setIsEditing] = useState(false)
   const [value, setValue] = useState(node.content || '')
@@ -14,6 +21,13 @@ const TextNode: React.FC<NodeProps> = ({
     // keep local value in sync if external changes happen
     setValue(node.content || '')
   }, [node.content])
+  
+  useEffect(() => {
+    // If external editing flag is set, enter edit mode
+    if (externalEditing) {
+      setIsEditing(true)
+    }
+  }, [externalEditing])
 
   useEffect(() => {
     if (isEditing && textareaRef.current) {
@@ -29,6 +43,7 @@ const TextNode: React.FC<NodeProps> = ({
     if (value !== node.content) {
       onEdit(node.id, value)
     }
+    if (onEditingDone) onEditingDone()
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -42,7 +57,7 @@ const TextNode: React.FC<NodeProps> = ({
     }
   }
 
-  const isWindow = node.view === 'window'
+  const isWindow = node.view === 'window' || node.view === 'fullscreen'
 
   return (
     <div
@@ -52,25 +67,34 @@ const TextNode: React.FC<NodeProps> = ({
     >
       {/* Window-mode: styled note with view / edit modes */}
       {isWindow ? (
-        <div className="w-full h-full p-3" style={{ boxSizing: 'border-box' }}>
+        <div className="w-full h-full" style={{ boxSizing: 'border-box' }}>
           {!isEditing ? (
             <div
-              className="w-full h-full p-3 bg-yellow-50 rounded-md shadow-inner overflow-auto"
-              style={{ whiteSpace: 'pre-wrap', color: '#1f2937', fontSize: 14 }}
+              className="w-full h-full p-2 bg-yellow-50 rounded-md overflow-auto"
+              style={{ whiteSpace: 'pre-wrap', color: '#1f2937', fontSize: 14, boxShadow: 'inset 0 1px 0 rgba(0,0,0,0.02)' }}
               onDoubleClick={() => setIsEditing(true)}
             >
               {node.content}
             </div>
           ) : (
-            <textarea
-              ref={textareaRef}
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              onBlur={() => save()}
-              onKeyDown={onKeyDown}
-              className="w-full h-full p-3 rounded-md border border-gray-200"
-              style={{ resize: 'none', boxSizing: 'border-box', fontSize: 14 }}
-            />
+            <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+              <textarea
+                ref={textareaRef}
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                onKeyDown={onKeyDown}
+                className="w-full h-full p-2 rounded-md border border-gray-200"
+                style={{ resize: 'none', boxSizing: 'border-box', fontSize: 14 }}
+              />
+              {/* Save button for body edits (brand color #F68C1E) */}
+              <button
+                onClick={() => save()}
+                className="px-3 py-1 text-white"
+                style={{ position: 'absolute', right: 12, top: 12, background: '#F68C1E', borderRadius: 8, border: 'none', cursor: 'pointer' }}
+              >
+                Save
+              </button>
+            </div>
           )}
         </div>
       ) : (
