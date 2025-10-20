@@ -4,13 +4,8 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
-    include: [
-      '@tldraw/tldraw',
-      'lodash.throttle',
-      'lodash.debounce',
-      'lodash.isequal'
-    ],
-    exclude: ['@tldraw/tldraw']
+    include: ['@tldraw/tldraw', 'lodash.throttle', 'lodash.debounce', 'lodash.isequal'],
+    exclude: ['@tldraw/tldraw'],
   },
   server: {
     port: 3000,
@@ -22,12 +17,12 @@ export default defineConfig({
     watch: {
       usePolling: true,
       // interval in milliseconds between polls. 100 is a reasonable default.
-      interval: 100
-    }
+      interval: 100,
+    },
   },
   build: {
     commonjsOptions: {
-      include: [/lodash/, /node_modules/]
-    }
-  }
+      include: [/lodash/, /node_modules/],
+    },
+  },
 })

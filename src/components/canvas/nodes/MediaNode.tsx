@@ -2,11 +2,7 @@ import React from 'react'
 import { NodeProps } from '../types/canvas'
 import { FileImage } from 'lucide-react'
 
-const MediaNode: React.FC<NodeProps> = ({ 
-  node, 
-  onSelect,
-  onFileSelect
-}) => {
+const MediaNode: React.FC<NodeProps> = ({ node, onSelect, onFileSelect }) => {
   const handleMediaClick = () => {
     if (!node.fileUrl) {
       onFileSelect(node.id)
@@ -25,29 +21,19 @@ const MediaNode: React.FC<NodeProps> = ({
       {node.fileUrl ? (
         <div className="w-full h-full" onClick={handleMediaClick} style={{ pointerEvents: 'auto' }}>
           {node.file?.type.startsWith('image/') && (
-            <img 
-              src={node.fileUrl} 
-              alt={node.content}
-              className="w-full h-full object-contain"
-            />
+            <img src={node.fileUrl} alt={node.content} className="w-full h-full object-contain" />
           )}
           {node.file?.type.startsWith('video/') && (
-            <video 
-              src={node.fileUrl}
-              className="w-full h-full object-contain"
-              controls
-            />
+            <video src={node.fileUrl} className="w-full h-full object-contain" controls />
           )}
         </div>
       ) : (
-        <div 
+        <div
           className="w-full h-full flex flex-col items-center justify-center p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors"
           onClick={handleMediaClick}
         >
           <FileImage size={32} className="text-gray-400 mb-2" />
-          <span className="text-sm text-gray-500 text-center">
-            Click para cargar media
-          </span>
+          <span className="text-sm text-gray-500 text-center">Click para cargar media</span>
         </div>
       )}
     </div>

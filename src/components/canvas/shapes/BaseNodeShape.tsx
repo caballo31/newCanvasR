@@ -17,7 +17,7 @@ export type RisspoNodeShape = TLShape & {
 // Componente de renderizado para el shape
 export const BaseNodeShapeComponent = ({ shape }: { shape: any }) => {
   const { props } = shape
-  
+
   const getNodeContent = () => {
     switch (props.nodeType) {
       case 'text':
@@ -29,9 +29,9 @@ export const BaseNodeShapeComponent = ({ shape }: { shape: any }) => {
       case 'image':
         return (
           <div className="w-full h-full bg-white border border-gray-300 rounded shadow-sm overflow-hidden">
-            <img 
-              src={props.src || 'https://via.placeholder.com/200x150'} 
-              alt="Node image" 
+            <img
+              src={props.src || 'https://via.placeholder.com/200x150'}
+              alt="Node image"
               className="w-full h-full object-cover"
             />
           </div>
@@ -39,9 +39,7 @@ export const BaseNodeShapeComponent = ({ shape }: { shape: any }) => {
       case 'html':
         return (
           <div className="w-full h-full p-3 bg-white border border-gray-300 rounded shadow-sm">
-            <div className="text-sm text-gray-500 text-center">
-              [HTML Content]
-            </div>
+            <div className="text-sm text-gray-500 text-center">[HTML Content]</div>
           </div>
         )
       case 'folder':

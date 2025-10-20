@@ -6,12 +6,12 @@ interface TextNodeExProps extends NodeProps {
   onEditingDone?: () => void
 }
 
-const TextNode: React.FC<TextNodeExProps> = ({ 
-  node, 
+const TextNode: React.FC<TextNodeExProps> = ({
+  node,
   onSelect,
   onEdit,
   externalEditing,
-  onEditingDone
+  onEditingDone,
 }) => {
   const [isEditing, setIsEditing] = useState(false)
   const [value, setValue] = useState(node.content || '')
@@ -21,7 +21,7 @@ const TextNode: React.FC<TextNodeExProps> = ({
     // keep local value in sync if external changes happen
     setValue(node.content || '')
   }, [node.content])
-  
+
   useEffect(() => {
     // If external editing flag is set, enter edit mode
     if (externalEditing) {
@@ -62,7 +62,12 @@ const TextNode: React.FC<TextNodeExProps> = ({
   return (
     <div
       data-node-id={node.id}
-      style={{ width: '100%', height: '100%', position: 'relative', userSelect: isEditing ? 'text' : 'none' }}
+      style={{
+        width: '100%',
+        height: '100%',
+        position: 'relative',
+        userSelect: isEditing ? 'text' : 'none',
+      }}
       onClick={() => onSelect(node.id)}
     >
       {/* Window-mode: styled note with view / edit modes */}
@@ -71,7 +76,12 @@ const TextNode: React.FC<TextNodeExProps> = ({
           {!isEditing ? (
             <div
               className="w-full h-full p-2 bg-yellow-50 rounded-md overflow-auto"
-              style={{ whiteSpace: 'pre-wrap', color: '#1f2937', fontSize: 14, boxShadow: 'inset 0 1px 0 rgba(0,0,0,0.02)' }}
+              style={{
+                whiteSpace: 'pre-wrap',
+                color: '#1f2937',
+                fontSize: 14,
+                boxShadow: 'inset 0 1px 0 rgba(0,0,0,0.02)',
+              }}
               onDoubleClick={() => setIsEditing(true)}
             >
               {node.content}
@@ -90,7 +100,15 @@ const TextNode: React.FC<TextNodeExProps> = ({
               <button
                 onClick={() => save()}
                 className="px-3 py-1 text-white"
-                style={{ position: 'absolute', right: 12, top: 12, background: '#F68C1E', borderRadius: 8, border: 'none', cursor: 'pointer' }}
+                style={{
+                  position: 'absolute',
+                  right: 12,
+                  top: 12,
+                  background: '#F68C1E',
+                  borderRadius: 8,
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
               >
                 Save
               </button>
@@ -100,9 +118,7 @@ const TextNode: React.FC<TextNodeExProps> = ({
       ) : (
         /* compact or other views: simple centered label */
         <div className="w-full h-full p-4 flex items-center justify-center">
-          <div className="text-lg text-gray-800 font-light">
-            {node.content}
-          </div>
+          <div className="text-lg text-gray-800 font-light">{node.content}</div>
         </div>
       )}
     </div>

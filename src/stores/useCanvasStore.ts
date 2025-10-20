@@ -17,12 +17,12 @@ const initialState: CanvasState = {
 // Función para migrar IDs viejos
 const migrateNodeIds = (nodes: Record<string, UINode>): Record<string, UINode> => {
   const migrated: Record<string, UINode> = {}
-  
-  Object.values(nodes).forEach(node => {
+
+  Object.values(nodes).forEach((node) => {
     const newId = node.id.startsWith('shape:') ? node.id : generateId()
     migrated[newId] = { ...node, id: newId }
   })
-  
+
   return migrated
 }
 
@@ -35,9 +35,9 @@ export const useCanvasStore = create<CanvasState & CanvasActions>()(
         // Asegurar que el ID empiece con "shape:"
         const validatedNode = {
           ...node,
-          id: node.id.startsWith('shape:') ? node.id : generateId()
+          id: node.id.startsWith('shape:') ? node.id : generateId(),
         }
-        
+
         set((state) => ({
           nodes: {
             ...state.nodes,
@@ -69,9 +69,7 @@ export const useCanvasStore = create<CanvasState & CanvasActions>()(
           if (node) {
             Object.values(nodes).forEach((n) => {
               if (n.type === 'folder' && n.children.includes(id)) {
-                ;(n as FolderNode).children = n.children.filter(
-                  (childId) => childId !== id
-                )
+                ;(n as FolderNode).children = n.children.filter((childId) => childId !== id)
               }
             })
           }
@@ -80,9 +78,7 @@ export const useCanvasStore = create<CanvasState & CanvasActions>()(
           delete nodes[id]
 
           // Remove selection if needed
-          const selectedNodes = state.selectedNodes.filter(
-            (selectedId) => selectedId !== id
-          )
+          const selectedNodes = state.selectedNodes.filter((selectedId) => selectedId !== id)
 
           return {
             nodes,
@@ -107,9 +103,7 @@ export const useCanvasStore = create<CanvasState & CanvasActions>()(
           // Remove from other folders
           Object.values(state.nodes).forEach((n) => {
             if (n.type === 'folder' && n.children.includes(nodeId)) {
-              ;(n as FolderNode).children = n.children.filter(
-                (childId) => childId !== nodeId
-              )
+              ;(n as FolderNode).children = n.children.filter((childId) => childId !== nodeId)
             }
           })
 
@@ -209,5 +203,5 @@ export const useCanvasStore = create<CanvasState & CanvasActions>()(
 
 // Exponer store globalmente para debug (solo en desarrollo)
 if (import.meta.env.DEV) {
-  (window as any).__RISSPO_STORE = useCanvasStore
+  ;(window as any).__RISSPO_STORE = useCanvasStore
 }

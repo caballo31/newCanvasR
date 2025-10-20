@@ -33,4 +33,8 @@ export interface NodeProps {
   onDuplicate: (nodeId: string) => void
   onEdit: (nodeId: string, newContent: string) => void
   onFileSelect: (nodeId?: string) => void
+  // optional external editing flag: when true the node should open its internal editor
+  externalEditing?: boolean
+  // callback when editing finishes (used by NodeFactory / canvas)
+  onEditingDone?: () => void
 }

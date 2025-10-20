@@ -10,7 +10,7 @@ export const useDebug = () => {
       if (event.ctrlKey && event.shiftKey && event.key === 'D') {
         event.preventDefault()
         console.log('=== 🐛 RISSPO DEBUG INFO ===')
-        
+
         // Info del store
         const store = (window as any).__RISSPO_STORE
         if (store) {
@@ -18,7 +18,7 @@ export const useDebug = () => {
           console.log('📦 Store nodes:', Object.keys(nodes).length)
           console.log('📋 Nodes details:', nodes)
         }
-        
+
         // Info del editor tldraw
         const editor = (window as any).__RISSPO_EDITOR
         if (editor) {
@@ -28,7 +28,7 @@ export const useDebug = () => {
           console.log('🎯 Selected shapes:', editor.getSelectedShapes())
           console.log('📐 Viewport:', editor.getViewportPageBounds())
         }
-        
+
         console.log('============================')
       }
 
