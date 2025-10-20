@@ -12,7 +12,8 @@ export interface BaseNode {
   isDragging?: boolean
   // Folder specific
   children?: string[]
-  view?: 'compact' | 'window'
+  view?: 'compact' | 'window' | 'fullscreen'
+  parent?: string | null
 }
 
 export interface Viewport {

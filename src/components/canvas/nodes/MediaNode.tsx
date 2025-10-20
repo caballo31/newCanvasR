@@ -1,13 +1,10 @@
 import React from 'react'
 import { NodeProps } from '../types/canvas'
-import { FileImage, X, Copy } from 'lucide-react'
+import { FileImage } from 'lucide-react'
 
 const MediaNode: React.FC<NodeProps> = ({ 
   node, 
-  isSelected, 
   onSelect,
-  onDelete,
-  onDuplicate,
   onFileSelect
 }) => {
   const handleMediaClick = () => {
@@ -22,31 +19,7 @@ const MediaNode: React.FC<NodeProps> = ({
       style={{ width: '100%', height: '100%', position: 'relative', userSelect: 'none' }}
       onClick={() => onSelect(node.id)}
     >
-      {/* Menu contextual para media con archivo */}
-      {isSelected && node.fileUrl && (
-        <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 flex gap-1 bg-gray-800 rounded-md p-1 shadow-lg">
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onDelete(node.id)
-            }}
-            className="p-1 hover:bg-gray-700 rounded text-white"
-            title="Eliminar"
-          >
-            <X size={12} />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onDuplicate(node.id)
-            }}
-            className="p-1 hover:bg-gray-700 rounded text-white"
-            title="Duplicar"
-          >
-            <Copy size={12} />
-          </button>
-        </div>
-      )}
+      {/* Per-node contextual menu removed — global floating toolbar is used instead */}
 
       {/* Contenido */}
       {node.fileUrl ? (

@@ -2,9 +2,11 @@ import React from 'react';
 
 interface ResizeHandlesProps {
   nodeId: string;
+  onHandlePointerDown?: (handle: string, clientX: number, clientY: number) => void
+  onHandlePointerMove?: (handle: string, clientX: number, clientY: number) => void
 }
 
-const ResizeHandles: React.FC<ResizeHandlesProps> = () => {
+const ResizeHandles: React.FC<ResizeHandlesProps> = ({ onHandlePointerDown, onHandlePointerMove }) => {
   const handles = [
     { position: 'nw', cursor: 'nw-resize' },
     { position: 'n', cursor: 'n-resize' },
@@ -50,6 +52,18 @@ const ResizeHandles: React.FC<ResizeHandlesProps> = () => {
           data-resize-handle={position}
           style={getHandleStyle(position)}
           className="resize-handle"
+          onPointerDown={(e) => {
+            try {
+              const el = e.currentTarget as Element & { setPointerCapture?: (id: number) => void }
+              if (typeof el.setPointerCapture === 'function') el.setPointerCapture((e as any).pointerId)
+            } catch {}
+            // prevent default to avoid text selection/drag
+            e.preventDefault()
+            if (onHandlePointerDown) onHandlePointerDown(position, (e as any).clientX, (e as any).clientY)
+          }}
+          onPointerMove={(e) => {
+            if (onHandlePointerMove) onHandlePointerMove(position, (e as any).clientX, (e as any).clientY)
+          }}
         />
       ))}
     </div>
