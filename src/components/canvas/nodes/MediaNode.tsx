@@ -23,7 +23,7 @@ const MediaNode: React.FC<NodeProps> = ({
 
       {/* Contenido */}
       {node.fileUrl ? (
-        <div className="w-full h-full" onClick={handleMediaClick} style={{ pointerEvents: 'none' }}>
+        <div className="w-full h-full" onClick={handleMediaClick} style={{ pointerEvents: 'auto' }}>
           {node.file?.type.startsWith('image/') && (
             <img 
               src={node.fileUrl} 

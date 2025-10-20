@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react'
 import { Button } from '../ui/button'
-import { Type, FileImage, Code, Folder, Copy, Edit, Trash } from 'lucide-react'
+import { Type, FileImage, Code, Folder, Copy, Edit, Trash, UploadCloud } from 'lucide-react'
 import { BaseNode, Viewport } from './types/canvas'
 import NodeFactory from './nodes/NodeFactory'
 import ResizeHandles from './nodes/ResizeHandles'
@@ -27,6 +27,15 @@ const RisspoCanvas: React.FC = () => {
   // Generar ID único
   const generateId = (): string => `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
+  const trimName = (name: string, max = 24) => {
+    if (!name) return ''
+    if (name.length <= max) return name
+    const extIndex = name.lastIndexOf('.')
+    const ext = extIndex > -1 ? name.slice(extIndex) : ''
+    const base = extIndex > -1 ? name.slice(0, extIndex) : name
+    return base.slice(0, Math.max(6, max - ext.length - 3)) + '...' + ext
+  }
+
   // Abrir selector de archivos para nodo Media
   const openFileSelector = (nodeId?: string): void => {
     if (nodeId) {
@@ -49,6 +58,7 @@ const RisspoCanvas: React.FC = () => {
           ? { 
               ...node, 
               content: file.name,
+              title: trimName(file.name),
               file: file,
               fileUrl: URL.createObjectURL(file)
             }
@@ -84,7 +94,7 @@ const RisspoCanvas: React.FC = () => {
       width: defaultSizes[type].width,
       height: defaultSizes[type].height,
       content: type === 'text' ? 'Texto' : type === 'media' ? file?.name || 'Media' : type === 'html' ? 'HTML' : 'Carpeta',
-      title: type === 'text' ? 'Texto' : type === 'media' ? file?.name || 'Media' : type === 'html' ? 'HTML' : 'Carpeta',
+      title: type === 'text' ? 'Texto' : type === 'media' ? trimName(file?.name || 'Media') : type === 'html' ? 'HTML' : 'Carpeta',
       file: file || null,
       fileUrl: file ? URL.createObjectURL(file) : undefined,
       view: 'compact'
@@ -163,11 +173,13 @@ const RisspoCanvas: React.FC = () => {
         type: 'media',
         x: dropX - 100,
         y: dropY - 75,
-        width: 200,
-        height: 150,
+        width: 640,
+        height: 420,
         content: file.name,
+        title: trimName(file.name),
         file: file,
-        fileUrl: URL.createObjectURL(file)
+        fileUrl: URL.createObjectURL(file),
+        view: 'window'
       }
       setNodes(prev => [...prev, newNode])
     }
@@ -454,7 +466,8 @@ const RisspoCanvas: React.FC = () => {
   }
 
   // Actualiza el renderizado de nodos
-  const COMPACT_SIZE = { width: 120, height: 80 }
+  // Compact nodes reserve space for a square thumbnail + title
+  const COMPACT_SIZE = { width: 140, height: 140 }
 
   const toggleToWindow = (nodeId: string) => {
     const node = nodes.find(n => n.id === nodeId)
@@ -492,6 +505,7 @@ const RisspoCanvas: React.FC = () => {
         <div
           key={node.id}
           data-node-id={node.id}
+          onPointerDown={() => setSelectedNode(node.id)}
           onDoubleClick={(e) => {
             // only expand compact nodes when double-clicking the body
             if (isCompact) {
@@ -575,6 +589,7 @@ const RisspoCanvas: React.FC = () => {
                 onDuplicate={duplicateNode}
                 onEdit={editNode}
                 onFileSelect={openFileSelector}
+                onToggleToWindow={toggleToWindow}
                 externalEditing={editingNode === node.id}
                 onEditingDone={() => setEditingNode(null)}
                 allNodes={nodes}
@@ -780,8 +795,16 @@ const RisspoCanvas: React.FC = () => {
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <button onClick={(e) => { e.stopPropagation(); setSelectedNode(fsNode.id); setEditingNode(fsNode.id) }} title="Editar" style={{ background: 'transparent', border: 'none', padding: 6, cursor: 'pointer' }}>
-                    <Edit size={16} />
+                  <button onClick={(e) => { e.stopPropagation();
+                      // If media node, open file selector to replace the media
+                      if (fsNode.type === 'media') {
+                        setSelectedNode(fsNode.id)
+                        openFileSelector(fsNode.id)
+                        return
+                      }
+                      setSelectedNode(fsNode.id); setEditingNode(fsNode.id)
+                    }} title={fsNode.type === 'media' ? 'Reemplazar' : 'Editar'} style={{ background: 'transparent', border: 'none', padding: 6, cursor: 'pointer' }}>
+                    {fsNode.type === 'media' ? <UploadCloud size={16} /> : <Edit size={16} />}
                   </button>
                   <button type="button" onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} onClick={() => setWindow(fsNode.id)} title="Restaurar" className="p-2 rounded-sm hover:bg-gray-100" aria-label="Restaurar">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 12h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
@@ -801,6 +824,7 @@ const RisspoCanvas: React.FC = () => {
                   onDuplicate={duplicateNode}
                   onEdit={editNode}
                   onFileSelect={openFileSelector}
+                    onToggleToWindow={toggleToWindow}
                   externalEditing={editingNode === fsNode.id}
                   onEditingDone={() => setEditingNode(null)}
                 />

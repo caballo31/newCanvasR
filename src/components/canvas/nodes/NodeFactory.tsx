@@ -9,6 +9,7 @@ interface NodeFactoryProps extends Omit<NodeProps, 'node'> {
   node: BaseNode
   allNodes?: BaseNode[]
   onAddToFolder?: (childId: string, folderId: string) => void
+  onToggleToWindow?: (nodeId: string) => void
   externalEditing?: boolean
   onEditingDone?: () => void
 }
@@ -16,8 +17,8 @@ interface NodeFactoryProps extends Omit<NodeProps, 'node'> {
 const NodeFactory: React.FC<NodeFactoryProps> = (props) => {
   const { node, ...nodeProps } = props
 
-  const Icon: React.FC<{ type: BaseNode['type'] }> = ({ type }) => {
-    const common = { width: 64, height: 64 }
+  const Icon: React.FC<{ type: BaseNode['type'], size?: number }> = ({ type, size = 64 }) => {
+    const common = { width: size, height: size }
     switch (type) {
       case 'text':
         return (
@@ -57,40 +58,87 @@ const NodeFactory: React.FC<NodeFactoryProps> = (props) => {
   switch (node.type) {
     case 'text':
       if (!node.view || node.view === 'compact') {
+        const THUMB = 96
         return (
-          <div className="w-full h-full flex flex-col items-center justify-center p-2" style={{ pointerEvents: 'none' }}>
-            <Icon type={node.type} />
-            <div style={{ marginTop: 6, fontSize: 12, color: '#111' }}>{node.content}</div>
+          <div
+            className="w-full h-full flex flex-col items-center justify-center"
+            style={{ boxSizing: 'border-box', padding: 8, cursor: 'pointer', userSelect: 'none' }}
+            onPointerDown={() => { if (props.onSelect) props.onSelect(node.id) }}
+            onDoubleClick={() => { if (props.onToggleToWindow) props.onToggleToWindow(node.id) }}
+          >
+            <div style={{ width: THUMB, height: THUMB, borderRadius: 8, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff', pointerEvents: 'none' }}>
+              <Icon type={node.type} size={56} />
+            </div>
+            <div style={{ marginTop: 8, fontSize: 12, color: '#111', width: THUMB, textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{node.title || node.content}</div>
           </div>
         )
       }
       return <TextNode {...(nodeProps as NodeProps)} node={node} externalEditing={props.externalEditing} onEditingDone={props.onEditingDone} />
     case 'media':
       if (!node.view || node.view === 'compact') {
+        const THUMB = 96
+        const isImageLike = (node.file && node.file.type && node.file.type.startsWith('image/')) || (node.fileUrl && /\.(svg|gif|png|jpe?g)$/i.test(node.fileUrl))
+        const isVideoLike = (node.file && node.file.type && node.file.type.startsWith('video/')) || (node.fileUrl && /\.(mp4|webm|ogg)$/i.test(node.fileUrl))
         return (
-          <div className="w-full h-full flex flex-col items-center justify-center p-2" style={{ pointerEvents: 'none' }}>
-            <Icon type={node.type} />
-            <div style={{ marginTop: 6, fontSize: 12, color: '#111' }}>{node.content}</div>
+          <div
+            className="w-full h-full flex flex-col items-center justify-center p-2"
+            style={{ boxSizing: 'border-box', padding: 8, cursor: 'pointer', userSelect: 'none' }}
+            onPointerDown={() => { if (props.onSelect) props.onSelect(node.id) }}
+            onDoubleClick={() => { if (props.onToggleToWindow) props.onToggleToWindow(node.id) }}
+          >
+            <div style={{ width: THUMB, height: THUMB, borderRadius: 8, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff', pointerEvents: 'none' }}>
+              {node.fileUrl && isImageLike ? (
+                <img src={node.fileUrl} alt={node.content} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }} />
+              ) : node.fileUrl && isVideoLike ? (
+                <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                  <video src={node.fileUrl} preload="metadata" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }} />
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 18, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <svg width="14" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 5v14l11-7L8 5z" fill="#fff"/></svg>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <Icon type={node.type} size={64} />
+              )}
+            </div>
+            <div style={{ marginTop: 8, fontSize: 12, color: '#111', width: THUMB, textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{node.title || node.content}</div>
           </div>
         )
       }
       return <MediaNode {...(nodeProps as NodeProps)} node={node} />
     case 'html':
       if (!node.view || node.view === 'compact') {
+        const THUMB = 96
         return (
-          <div className="w-full h-full flex flex-col items-center justify-center p-2" style={{ pointerEvents: 'none' }}>
-            <Icon type={node.type} />
-            <div style={{ marginTop: 6, fontSize: 12, color: '#111' }}>{node.content}</div>
+          <div
+            className="w-full h-full flex flex-col items-center justify-center"
+            style={{ boxSizing: 'border-box', padding: 8, cursor: 'pointer', userSelect: 'none' }}
+            onPointerDown={() => { if (props.onSelect) props.onSelect(node.id) }}
+            onDoubleClick={() => { if (props.onToggleToWindow) props.onToggleToWindow(node.id) }}
+          >
+            <div style={{ width: THUMB, height: THUMB, borderRadius: 8, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff', pointerEvents: 'none' }}>
+              <Icon type={node.type} size={56} />
+            </div>
+            <div style={{ marginTop: 8, fontSize: 12, color: '#111', width: THUMB, textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{node.title || node.content}</div>
           </div>
         )
       }
       return <HTMLNode {...(nodeProps as NodeProps)} node={node} />
     case 'folder':
       if (!node.view || node.view === 'compact') {
+        const THUMB = 96
         return (
-          <div className="w-full h-full flex flex-col items-center justify-center p-2" style={{ pointerEvents: 'none' }}>
-            <Icon type={node.type} />
-            <div style={{ marginTop: 6, fontSize: 12, color: '#111' }}>{node.content}</div>
+          <div
+            className="w-full h-full flex flex-col items-center justify-center"
+            style={{ boxSizing: 'border-box', padding: 8, cursor: 'pointer', userSelect: 'none' }}
+            onPointerDown={() => { if (props.onSelect) props.onSelect(node.id) }}
+            onDoubleClick={() => { if (props.onToggleToWindow) props.onToggleToWindow(node.id) }}
+          >
+            <div style={{ width: THUMB, height: THUMB, borderRadius: 8, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff', pointerEvents: 'none' }}>
+              <Icon type={node.type} size={56} />
+            </div>
+            <div style={{ marginTop: 8, fontSize: 12, color: '#111', width: THUMB, textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{node.title || node.content}</div>
           </div>
         )
       }
