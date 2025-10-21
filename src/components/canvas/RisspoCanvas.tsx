@@ -241,6 +241,24 @@ const RisspoCanvas: React.FC = () => {
     applyModel({ ...next, selectedIds: next.selectedIds.filter((id) => id !== nodeId) })
   }
 
+  const deleteNodes = (ids: string[]): void => {
+    if (!ids || ids.length === 0) return
+    // Revoke file urls where applicable
+    ids.forEach((id) => {
+      const n = nodes.find((x) => x.id === id)
+      if (n?.fileUrl) {
+        try { URL.revokeObjectURL(n.fileUrl) } catch {}
+      }
+    })
+    const toDelete = new Set(ids)
+    // Close any windows that are the deleted nodes by removing them from nodes
+    const model = getModel()
+    const remaining = model.nodes.filter((n) => !toDelete.has(n.id))
+    // Clean selection
+    const remainingSelected = model.selectedIds.filter((id) => !toDelete.has(id))
+    applyModel({ ...model, nodes: remaining, selectedIds: remainingSelected })
+  }
+
   // Editar contenido del nodo
   const editNode = (nodeId: string, newContent: string): void => {
     dispatchAction({ type: 'UPDATE_NODE', id: nodeId, patch: { content: newContent } })
@@ -261,7 +279,8 @@ const RisspoCanvas: React.FC = () => {
     try { console.debug('[RisspoCanvas] handleDrop') } catch {}
     const draggedNodeId = e.dataTransfer.getData('text/node-id')
     if (draggedNodeId) {
-      // Move existing node to this drop position and remove parent
+      // If a dataTransfer node id was provided it means an external/drop from folder list.
+      // Treat drop as moving that single node here.
       let dropX = (e.clientX - viewport.x) / viewport.scale
       let dropY = (e.clientY - viewport.y) / viewport.scale
       if (!isAltPressed) {
@@ -269,15 +288,11 @@ const RisspoCanvas: React.FC = () => {
         dropY = Math.round(dropY / GRID) * GRID
       }
       setNodes((prev) =>
-        prev.map((n) =>
-          n.id === draggedNodeId ? { ...n, x: dropX, y: dropY, parent: undefined } : n
-        )
+        prev.map((n) => (n.id === draggedNodeId ? { ...n, x: dropX, y: dropY, parent: undefined } : n))
       )
       // Also remove from any folder children arrays
       setNodes((prev) =>
-        prev.map((n) =>
-          n.children ? { ...n, children: n.children.filter((id) => id !== draggedNodeId) } : n
-        )
+        prev.map((n) => (n.children ? { ...n, children: n.children.filter((id) => id !== draggedNodeId) } : n))
       )
       return
     }
@@ -1090,12 +1105,50 @@ const RisspoCanvas: React.FC = () => {
     }
 
     // Detect drop into folder only if hubo un drag real
-    if (selectedNode && dragMovedRef.current) {
+    if (dragMovedRef.current) {
       const world = toWorld(pointerPos, viewport)
       const target = findDropTarget(nodes, world)
       const folderId = target.folderId
-      if (folderId && folderId !== selectedNode) {
-        dispatchAction({ type: 'ADD_TO_FOLDER', childId: selectedNode, folderId })
+      if (folderId) {
+        // Determine set of items being dropped: if groupDragStart exists use currently selectedIds (source of truth)
+        const candidates = selectedIds.length > 0 ? selectedIds : selectedNode ? [selectedNode] : []
+        if (candidates.length > 0) {
+          // Avoid adding the folder into itself or its descendants
+          const folder = nodes.find((n) => n.id === folderId)
+          const descendants = new Set<string>()
+          if (folder) {
+            // build descendant set via BFS
+            const q = [...(folder.children || [])]
+            while (q.length > 0) {
+              const id = q.shift() as string
+              if (!id || descendants.has(id)) continue
+              descendants.add(id)
+              const child = nodes.find((n) => n.id === id)
+              if (child && child.children) q.push(...child.children)
+            }
+          }
+          const toMove = candidates.filter((id) => id !== folderId && !descendants.has(id))
+          if (toMove.length > 0) {
+            // Only add those not already in folder
+            const alreadyIn = new Set((nodes.find((n) => n.id === folderId)?.children) || [])
+            const commit = toMove.filter((id) => !alreadyIn.has(id))
+            for (const id of commit) {
+              dispatchAction({ type: 'ADD_TO_FOLDER', childId: id, folderId })
+            }
+            // After the drop, keep selection on items moved that are now inside the open folder.
+            const kept = toMove.filter((id) => commit.includes(id))
+            if (kept.length > 0) {
+              // If folder is open window/fullscreen we can keep toolbar visible; otherwise toolbar hidden but selection preserved
+              const parentNode = nodes.find((n) => n.id === folderId)
+              if (parentNode && (parentNode.view === 'window' || parentNode.view === 'fullscreen')) {
+                dispatchAction({ type: 'SET_SELECTED', ids: kept })
+              } else {
+                // compact folder: keep selection but do not change toolbar positioning (FloatingToolbar will hide)
+                dispatchAction({ type: 'SET_SELECTED', ids: kept })
+              }
+            }
+          }
+        }
       }
     }
     // Mantener la selección tras un drag real; no limpiar aquí para que el elemento
@@ -1585,7 +1638,7 @@ const RisspoCanvas: React.FC = () => {
           viewport={viewport}
           selectedIds={selectedIds}
           selectedNode={selectedNode}
-          onDelete={(ids) => ids.forEach((id) => deleteNode(id))}
+          onDelete={(ids) => deleteNodes(ids)}
           onDuplicate={(ids) => {
             if (ids.length > 1) {
               // use reducer for multi-dup

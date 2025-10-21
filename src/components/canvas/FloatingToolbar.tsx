@@ -27,15 +27,24 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
   if (!hasAny) return null
 
   const selected = selectedIds.length > 0 ? nodes.filter((n) => selectedIds.includes(n.id)) : []
+  // filter visible nodes: nodes that are not children of a closed (compact) folder
+  const selectedVisible = selected.filter((n) => {
+    if (!n) return false
+    if (!n.parent) return true
+    const parent = nodes.find((p) => p.id === n.parent)
+    return !!parent && (parent.view === 'window' || parent.view === 'fullscreen')
+  })
   let left = 0
   let top = 0
   let anchorNode: BaseNode | undefined
 
   if (selected.length > 1) {
-    const minX = Math.min(...selected.map((n) => n.x))
-    const minY = Math.min(...selected.map((n) => n.y))
-    const maxX = Math.max(...selected.map((n) => n.x + getVisualSize(n).width))
-    const maxY = Math.max(...selected.map((n) => n.y + getVisualSize(n).height))
+    // If none of the selected items are visible (e.g. they live inside a compact folder), don't show toolbar
+    if (selectedVisible.length === 0) return null
+    const minX = Math.min(...selectedVisible.map((n) => n.x))
+    const minY = Math.min(...selectedVisible.map((n) => n.y))
+    const maxX = Math.max(...selectedVisible.map((n) => n.x + getVisualSize(n).width))
+    const maxY = Math.max(...selectedVisible.map((n) => n.y + getVisualSize(n).height))
     const cx = (minX + maxX) / 2
     const cy = (minY + maxY) / 2
     left = cx * viewport.scale + viewport.x
@@ -44,6 +53,11 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
     const anchorId = selectedNode || (selectedIds.length ? selectedIds[selectedIds.length - 1] : null)
     anchorNode = nodes.find((n) => n.id === anchorId)
     if (!anchorNode) return null
+    // if the anchor node is inside a compact folder, don't show toolbar
+    if (anchorNode.parent) {
+      const parent = nodes.find((p) => p.id === anchorNode!.parent)
+      if (parent && parent.view !== 'window' && parent.view !== 'fullscreen') return null
+    }
     if (anchorNode.view === 'fullscreen') return null
     // compute screen-space position from world coords: screen = world * scale + viewportOffset
     const screenX = anchorNode.x * viewport.scale + viewport.x
