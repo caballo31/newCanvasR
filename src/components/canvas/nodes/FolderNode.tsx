@@ -1,13 +1,20 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Folder as FolderIcon } from 'lucide-react'
 import { NodeProps, BaseNode } from '../types/canvas'
+import { CompactThumb } from './NodeIcons'
 
 type FolderNodeProps = NodeProps & {
   allNodes?: BaseNode[]
   onAddToFolder?: (childId: string, folderId: string) => void
 }
 
-const FolderNode: React.FC<FolderNodeProps> = ({ node, onSelect, allNodes, onAddToFolder }) => {
+const FolderNode: React.FC<FolderNodeProps> = ({
+  node,
+  onSelect,
+  onUpdate,
+  allNodes,
+  onAddToFolder,
+}) => {
   const nodesMap = useMemo(() => {
     const map: Record<string, BaseNode> = {}
     ;(allNodes || []).forEach((n) => {
@@ -21,10 +28,11 @@ const FolderNode: React.FC<FolderNodeProps> = ({ node, onSelect, allNodes, onAdd
     return node.children.map((id) => nodesMap[id]).filter(Boolean)
   }, [node.children, nodesMap])
 
-  const isWindow = node.view === 'window'
+  const isWindowLike = node.view === 'window' || node.view === 'fullscreen'
+  const [selectedChild, setSelectedChild] = useState<string | null>(null)
 
   // Compact view: icon + name
-  if (!isWindow) {
+  if (!isWindowLike) {
     return (
       <div
         data-node-id={node.id}
@@ -66,20 +74,22 @@ const FolderNode: React.FC<FolderNodeProps> = ({ node, onSelect, allNodes, onAdd
     >
       {/* Per-node contextual menu removed — global floating toolbar is used instead */}
 
-      <div className="w-full h-full bg-white border rounded-lg shadow-sm p-2 flex flex-col">
-        <div className="flex items-center justify-between px-2 py-1 border-b">
-          <div className="flex items-center gap-2">
-            <FolderIcon size={18} />
-            <div className="font-medium">{node.content}</div>
-          </div>
-          <div className="text-sm text-gray-500">{children.length} items</div>
-        </div>
-
-        <div className="flex-1 overflow-auto p-2 grid grid-cols-3 gap-2">
+      <div className="w-full h-full" style={{ padding: 8 }}>
+        <div
+          className="w-full h-full overflow-auto grid grid-cols-3 gap-2"
+          style={{ alignItems: 'start', gridAutoRows: 'min-content' }}
+          onClick={() => {
+            // clicking on the folder background clears any child selection
+            setSelectedChild(null)
+          }}
+        >
           {children.map((child) => (
             <div
               key={child.id}
-              className="bg-gray-50 rounded p-2 text-center text-sm shadow-sm"
+              className={`relative bg-gray-50 rounded text-center text-sm shadow-sm ${
+                selectedChild === child.id ? 'ring-2 ring-orange-300' : ''
+              }`}
+              style={{ padding: 0, display: 'flex', justifyContent: 'center' }}
               draggable={true}
               onDragStart={(e) => {
                 e.dataTransfer.setData('text/node-id', child.id)
@@ -87,8 +97,20 @@ const FolderNode: React.FC<FolderNodeProps> = ({ node, onSelect, allNodes, onAdd
                   e.dataTransfer.effectAllowed = 'move'
                 } catch {}
               }}
+              onClick={(e) => {
+                e.stopPropagation()
+                setSelectedChild(child.id)
+                onSelect && onSelect(child.id)
+              }}
+              onDoubleClick={(e) => {
+                e.stopPropagation()
+                // open child in fullscreen directly
+                onUpdate && onUpdate(child.id, { view: 'fullscreen' })
+              }}
             >
-              {child.content}
+              <div style={{ pointerEvents: 'none', padding: 8 }}>
+                <CompactThumb type={child.type} title={child.title} label={child.content} />
+              </div>
             </div>
           ))}
         </div>
