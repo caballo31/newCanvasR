@@ -66,6 +66,21 @@ const RisspoCanvas: React.FC = () => {
   >(null)
   // track if any dragging actually moved beyond a small threshold
   const dragMovedRef = useRef(false)
+  // preselect/drag state machine
+  const HOLD_MS = 180
+  const MOVE_PX = 5
+  const preselectRef = useRef<
+    | null
+    | {
+        state: 'preselect' | 'dragging'
+        nodeId: string
+        downX: number
+        downY: number
+        timer: number | null
+        startTime: number
+      }
+  >(null)
+  
   const [editingNode, setEditingNode] = useState<string | null>(null)
   const [pendingEditNode, setPendingEditNode] = useState<string | null>(null)
   const [titleEdit, setTitleEdit] = useState<{ id: string | null; value: string }>({
@@ -344,6 +359,8 @@ const RisspoCanvas: React.FC = () => {
         if (canvasRef.current) {
           canvasRef.current.style.cursor = 'grab'
         }
+        // starting pan cancels any preselect
+        clearPreselect()
       }
 
       if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -561,7 +578,7 @@ const RisspoCanvas: React.FC = () => {
           setSelectedNode(nodeId)
         }
         setHeaderActive(nodeId)
-        const nodeLookup = nodes.find((n) => n.id === nodeId)
+  const nodeLookup = nodes.find((n) => n.id === nodeId)
         if (nodeLookup) {
           // If we clicked any node that is part of a multi-selection, start a group drag
           if (selectedIds.length > 1 && selectedIds.includes(nodeId)) {
@@ -598,6 +615,33 @@ const RisspoCanvas: React.FC = () => {
         }
       }
       return
+    }
+
+    // PRESELECT: if we clicked a node (but not on header or child), prepare preselect state
+    const clickedNodeEl = target.closest('[data-node-id]') as HTMLElement | null
+    if (clickedNodeEl) {
+      const clickedId = clickedNodeEl.getAttribute('data-node-id')
+      if (clickedId) {
+        // If modifiers for multi-select are pressed, don't enter drag
+        if (e.shiftKey || e.altKey) {
+          // handle toggle selection immediately
+          toggleSelection(clickedId)
+          return
+        }
+        const alreadySelected = selectedIds.includes(clickedId)
+        if (!alreadySelected) {
+          // preselect only that node
+          dispatchAction({ type: 'SELECT_ONE', id: clickedId })
+        }
+        // set up preselect timer to start drag on hold
+        clearPreselect()
+        const timer = window.setTimeout(() => {
+          // if not cancelled, start drag
+          startDragFromPreselect(clickedId, e.clientX, e.clientY)
+        }, HOLD_MS)
+        preselectRef.current = { state: 'preselect', nodeId: clickedId, downX: e.clientX, downY: e.clientY, timer, startTime: Date.now() }
+        return
+      }
     }
 
     // If clicked inside a node but not on header: select; if compact, start drag as before
@@ -775,6 +819,19 @@ const RisspoCanvas: React.FC = () => {
       return
     }
 
+    // If we are in preselect state and moved enough, start drag immediately
+    if (preselectRef.current && preselectRef.current.state === 'preselect') {
+      const dx = e.clientX - preselectRef.current.downX
+      const dy = e.clientY - preselectRef.current.downY
+      if (Math.hypot(dx, dy) >= MOVE_PX) {
+        // cancel timer and start drag
+        if (preselectRef.current.timer) {
+          try { window.clearTimeout(preselectRef.current.timer) } catch {}
+        }
+        startDragFromPreselect(preselectRef.current.nodeId, e.clientX, e.clientY)
+      }
+    }
+
     // Mover grupo si está siendo arrastrado
     if (groupDragStart) {
       const deltaX = (e.clientX - groupDragStart.startX) / viewport.scale
@@ -906,6 +963,17 @@ const RisspoCanvas: React.FC = () => {
         setIsDraggingViewport(false)
       }
     }
+
+  // Ensure preselect cleared on global pointerup/cancel
+  useEffect(() => {
+    const onUp = () => clearPreselect()
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+    return () => {
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+    }
+  }, [])
 
     
 
@@ -1054,6 +1122,37 @@ const RisspoCanvas: React.FC = () => {
 
     // bring to front when changing view
     bringToFront(nodeId)
+  }
+
+  const clearPreselect = () => {
+    if (preselectRef.current && preselectRef.current.timer) {
+      try { window.clearTimeout(preselectRef.current.timer) } catch {}
+    }
+    preselectRef.current = null
+  }
+
+  const startDragFromPreselect = (nodeId: string, eClientX?: number, eClientY?: number) => {
+    const node = nodes.find((n) => n.id === nodeId)
+    if (!node) return
+    // Bring to front in its band
+    bringToFront(nodeId)
+    // Mark drag started
+    preselectRef.current = preselectRef.current ? { ...preselectRef.current, state: 'dragging', timer: null } : { state: 'dragging', nodeId, downX: eClientX || 0, downY: eClientY || 0, timer: null, startTime: Date.now() }
+    dragMovedRef.current = false
+    // If node part of multi-selection and multiple selected -> group drag
+    if (selectedIds.length > 1 && selectedIds.includes(nodeId)) {
+      const items = selectedIds
+        .map((id) => {
+          const n = nodes.find((nn) => nn.id === id)
+          return n ? { id, x: n.x, y: n.y } : null
+        })
+        .filter((x): x is { id: string; x: number; y: number } => !!x)
+      setGroupDragStart({ startX: eClientX || 0, startY: eClientY || 0, items })
+      setNodes((prev) => prev.map((n) => (selectedIds.includes(n.id) ? { ...n, isDragging: true } : n)))
+    } else {
+      setNodeDragStart({ x: eClientX || 0, y: eClientY || 0, nodeX: node.x, nodeY: node.y })
+      setNodes((prev) => prev.map((n) => (n.id === nodeId ? { ...n, isDragging: true } : n)))
+    }
   }
 
   const setCompact = (nodeId: string) => updateNode(nodeId, { view: 'compact' })
