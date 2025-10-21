@@ -1,8 +1,6 @@
 import { useEffect } from 'react'
-import { useEditor } from '@tldraw/tldraw'
 
 export const useDebug = () => {
-  const editor = useEditor()
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

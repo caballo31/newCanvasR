@@ -1,6 +1,14 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { CanvasState, CanvasActions, UINode, FolderNode } from '../components/canvas/types/canvas'
+// Types below are relaxed to avoid coupling; the project no longer consumes this store in the canvas.
+type UINode = any
+type FolderNode = any
+interface CanvasState {
+  nodes: Record<string, UINode>
+  selectedNodes: string[]
+  viewport: { x: number; y: number; scale: number }
+}
+type CanvasActions = any
 import { SCHEMA_VERSION, APP_NAME } from '../lib/constants'
 import { generateId } from '../lib/utils'
 
@@ -28,17 +36,17 @@ const migrateNodeIds = (nodes: Record<string, UINode>): Record<string, UINode> =
 
 export const useCanvasStore = create<CanvasState & CanvasActions>()(
   persist(
-    (set, get) => ({
+    (set, _get) => ({
       ...initialState,
 
-      addNode: (node: UINode) => {
+  addNode: (node: UINode) => {
         // Asegurar que el ID empiece con "shape:"
         const validatedNode = {
           ...node,
           id: node.id.startsWith('shape:') ? node.id : generateId(),
         }
 
-        set((state) => ({
+  set((state: CanvasState) => ({
           nodes: {
             ...state.nodes,
             [validatedNode.id]: validatedNode,
@@ -47,7 +55,7 @@ export const useCanvasStore = create<CanvasState & CanvasActions>()(
       },
 
       updateNode: (id: string, updates: Partial<UINode>) => {
-        set((state) => {
+        set((state: CanvasState) => {
           const node = state.nodes[id]
           if (!node) return state
 
@@ -61,15 +69,15 @@ export const useCanvasStore = create<CanvasState & CanvasActions>()(
       },
 
       removeNode: (id: string) => {
-        set((state) => {
+        set((state: CanvasState) => {
           const nodes = { ...state.nodes }
           const node = nodes[id]
 
           // Remove from parent folders
           if (node) {
-            Object.values(nodes).forEach((n) => {
+            Object.values(nodes).forEach((n: any) => {
               if (n.type === 'folder' && n.children.includes(id)) {
-                ;(n as FolderNode).children = n.children.filter((childId) => childId !== id)
+                ;(n as FolderNode).children = n.children.filter((childId: any) => childId !== id)
               }
             })
           }
@@ -78,7 +86,7 @@ export const useCanvasStore = create<CanvasState & CanvasActions>()(
           delete nodes[id]
 
           // Remove selection if needed
-          const selectedNodes = state.selectedNodes.filter((selectedId) => selectedId !== id)
+          const selectedNodes = state.selectedNodes.filter((selectedId: any) => selectedId !== id)
 
           return {
             nodes,
@@ -92,7 +100,7 @@ export const useCanvasStore = create<CanvasState & CanvasActions>()(
       },
 
       addToFolder: (nodeId: string, folderId: string) => {
-        set((state) => {
+        set((state: CanvasState) => {
           const folder = state.nodes[folderId] as FolderNode | undefined
           const node = state.nodes[nodeId]
 
@@ -101,9 +109,9 @@ export const useCanvasStore = create<CanvasState & CanvasActions>()(
           }
 
           // Remove from other folders
-          Object.values(state.nodes).forEach((n) => {
+          Object.values(state.nodes).forEach((n: any) => {
             if (n.type === 'folder' && n.children.includes(nodeId)) {
-              ;(n as FolderNode).children = n.children.filter((childId) => childId !== nodeId)
+              ;(n as FolderNode).children = n.children.filter((childId: any) => childId !== nodeId)
             }
           })
 
@@ -123,7 +131,7 @@ export const useCanvasStore = create<CanvasState & CanvasActions>()(
       },
 
       removeFromFolder: (nodeId: string, folderId: string) => {
-        set((state) => {
+        set((state: CanvasState) => {
           const folder = state.nodes[folderId] as FolderNode | undefined
           if (!folder || folder.type !== 'folder') {
             return state
@@ -131,7 +139,7 @@ export const useCanvasStore = create<CanvasState & CanvasActions>()(
 
           const updatedFolder: FolderNode = {
             ...folder,
-            children: folder.children.filter((id) => id !== nodeId),
+            children: folder.children.filter((id: any) => id !== nodeId),
           }
 
           return {
@@ -144,7 +152,7 @@ export const useCanvasStore = create<CanvasState & CanvasActions>()(
       },
 
       setFolderView: (folderId: string, view: 'compact' | 'window') => {
-        set((state) => {
+        set((state: CanvasState) => {
           const folder = state.nodes[folderId] as FolderNode | undefined
           if (!folder || folder.type !== 'folder') {
             return state
@@ -160,7 +168,7 @@ export const useCanvasStore = create<CanvasState & CanvasActions>()(
       },
 
       minimizeNode: (nodeId: string) => {
-        set((state) => {
+        set((state: CanvasState) => {
           const node = state.nodes[nodeId]
           if (!node) return state
 
@@ -202,6 +210,9 @@ export const useCanvasStore = create<CanvasState & CanvasActions>()(
 )
 
 // Exponer store globalmente para debug (solo en desarrollo)
-if (import.meta.env.DEV) {
-  ;(window as any).__RISSPO_STORE = useCanvasStore
-}
+try {
+  // @ts-ignore
+  if ((import.meta as any).env && (import.meta as any).env.DEV) {
+    ;(window as any).__RISSPO_STORE = useCanvasStore
+  }
+} catch {}

@@ -1,30 +1,36 @@
 import { useEffect } from 'react'
 import { useCanvasStore } from '../stores/useCanvasStore'
+import { mapKeyDown } from '../lib/interactions'
 
 export const useKeyboardShortcuts = () => {
   const { selectedNodes, removeNode } = useCanvasStore()
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Delete' || event.key === 'Backspace') {
-        if (selectedNodes.length > 0) {
+      const action = mapKeyDown(event)
+      if (!action) return
+      switch (action.type) {
+        case 'DELETE_SELECTED':
+          if (selectedNodes.length > 0) {
+            event.preventDefault()
+            selectedNodes.forEach((nodeId: string) => removeNode(nodeId))
+          }
+          break
+        case 'DUPLICATE_SELECTED':
           event.preventDefault()
-          selectedNodes.forEach((nodeId) => removeNode(nodeId))
-        }
-      }
-
-      if ((event.metaKey || event.ctrlKey) && event.key === 'd') {
-        event.preventDefault()
-        console.log('Duplicate nodes:', selectedNodes)
-      }
-
-      if ((event.metaKey || event.ctrlKey) && event.key === 's') {
-        event.preventDefault()
-        console.log('Save snapshot')
-      }
-
-      if (event.key === 'Escape') {
-        console.log('Deselect all')
+          // Placeholder: duplication is handled in RisspoCanvas toolbar and via state helpers
+          break
+        case 'SAVE':
+          event.preventDefault()
+          // Placeholder: saving handled in toolbar using persistence service
+          break
+        case 'DESELECT_ALL':
+          // Placeholder: a store action could be used when reducer is wired
+          break
+        case 'ZOOM_PRESET':
+          event.preventDefault()
+          // Placeholder: viewport zoom handled in canvas component for now
+          break
       }
     }
 

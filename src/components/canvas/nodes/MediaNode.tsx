@@ -2,7 +2,7 @@ import React from 'react'
 import { NodeProps } from '../types/canvas'
 import { FileImage } from 'lucide-react'
 
-const MediaNode: React.FC<NodeProps> = ({ node, onSelect, onFileSelect }) => {
+const MediaNode: React.FC<NodeProps> = ({ node, onFileSelect }) => {
   const handleMediaClick = () => {
     if (!node.fileUrl) {
       onFileSelect(node.id)
@@ -13,7 +13,6 @@ const MediaNode: React.FC<NodeProps> = ({ node, onSelect, onFileSelect }) => {
     <div
       data-node-id={node.id}
       style={{ width: '100%', height: '100%', position: 'relative', userSelect: 'none' }}
-      onClick={() => onSelect(node.id)}
     >
       {/* Per-node contextual menu removed — global floating toolbar is used instead */}
 

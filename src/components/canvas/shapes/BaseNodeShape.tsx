@@ -1,5 +1,4 @@
-import { useEditor, TLComponents, Tldraw, Vec, TLShape, TLShapeId } from '@tldraw/tldraw'
-import React from 'react'
+import type { TLShape } from '@tldraw/tldraw'
 
 // Definir el tipo de shape para nuestros nodos
 export type RisspoNodeShape = TLShape & {

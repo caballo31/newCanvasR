@@ -27,17 +27,14 @@ const NodeFactoryComponent: React.FC<NodeFactoryProps> = (props) => {
     const isVideoLike =
       (node.file && (node.file as File).type && (node.file as File).type.startsWith('video/')) ||
       (node.fileUrl && /\.(mp4|webm|ogg)$/i.test(node.fileUrl))
-    return (
-      <div
-        className="w-full h-full flex flex-col items-center justify-center p-2"
-        style={{ boxSizing: 'border-box', padding: 8, cursor: 'pointer', userSelect: 'none' }}
-        onPointerDown={() => {
-          if (props.onSelect) props.onSelect(node.id)
-        }}
-        onDoubleClick={() => {
-          if (props.onToggleToWindow) props.onToggleToWindow(node.id)
-        }}
-      >
+      return (
+        <div
+          className="w-full h-full flex flex-col items-center justify-center p-2"
+          style={{ boxSizing: 'border-box', padding: 8, cursor: 'pointer', userSelect: 'none' }}
+          onDoubleClick={() => {
+            if (props.onToggleToWindow) props.onToggleToWindow(node.id)
+          }}
+        >
         <div
           style={{
             width: THUMB,

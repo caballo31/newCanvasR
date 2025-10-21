@@ -8,13 +8,7 @@ type FolderNodeProps = NodeProps & {
   onAddToFolder?: (childId: string, folderId: string) => void
 }
 
-const FolderNode: React.FC<FolderNodeProps> = ({
-  node,
-  onSelect,
-  onUpdate,
-  allNodes,
-  onAddToFolder,
-}) => {
+const FolderNode: React.FC<FolderNodeProps> = ({ node, onUpdate, allNodes, onAddToFolder }) => {
   const nodesMap = useMemo(() => {
     const map: Record<string, BaseNode> = {}
     ;(allNodes || []).forEach((n) => {
@@ -37,7 +31,6 @@ const FolderNode: React.FC<FolderNodeProps> = ({
       <div
         data-node-id={node.id}
         style={{ width: '100%', height: '100%', position: 'relative', userSelect: 'none' }}
-        onClick={() => onSelect(node.id)}
       >
         {/* Per-node contextual menu removed — global floating toolbar is used instead */}
 
@@ -62,7 +55,6 @@ const FolderNode: React.FC<FolderNodeProps> = ({
         userSelect: 'none',
         overflow: 'hidden',
       }}
-      onClick={() => onSelect(node.id)}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault()
@@ -97,10 +89,11 @@ const FolderNode: React.FC<FolderNodeProps> = ({
                   e.dataTransfer.effectAllowed = 'move'
                 } catch {}
               }}
-              onClick={(e) => {
-                e.stopPropagation()
+              // Let clicks bubble to canvas so modifiers (Alt/Ctrl/Shift) are respected;
+              // still set selectedChild for visual feedback inside folder.
+              onClick={() => {
+                // allow click to bubble to canvas so modifier-based selection works
                 setSelectedChild(child.id)
-                onSelect && onSelect(child.id)
               }}
               onDoubleClick={(e) => {
                 e.stopPropagation()

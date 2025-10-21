@@ -6,13 +6,7 @@ interface TextNodeExProps extends NodeProps {
   onEditingDone?: () => void
 }
 
-const TextNode: React.FC<TextNodeExProps> = ({
-  node,
-  onSelect,
-  onEdit,
-  externalEditing,
-  onEditingDone,
-}) => {
+const TextNode: React.FC<TextNodeExProps> = ({ node, onEdit, externalEditing, onEditingDone }) => {
   const [isEditing, setIsEditing] = useState(false)
   const [value, setValue] = useState(node.content || '')
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -68,7 +62,6 @@ const TextNode: React.FC<TextNodeExProps> = ({
         position: 'relative',
         userSelect: isEditing ? 'text' : 'none',
       }}
-      onClick={() => onSelect(node.id)}
     >
       {/* Window-mode: styled note with view / edit modes */}
       {isWindow ? (

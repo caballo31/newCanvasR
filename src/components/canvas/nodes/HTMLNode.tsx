@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react'
 import { NodeProps } from '../types/canvas'
 import { Code, Edit, Save, X } from 'lucide-react'
 
-const HTMLNode: React.FC<NodeProps> = ({ node, onSelect, onEdit, externalEditing, onEditingDone }) => {
+const HTMLNode: React.FC<NodeProps> = ({ node, onEdit, externalEditing, onEditingDone }) => {
   const [isEditing, setIsEditing] = useState(false)
   const [value, setValue] = useState(node.content || '')
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -34,7 +34,6 @@ const HTMLNode: React.FC<NodeProps> = ({ node, onSelect, onEdit, externalEditing
     <div
       data-node-id={node.id}
       style={{ width: '100%', height: '100%', position: 'relative', userSelect: 'none' }}
-      onClick={() => onSelect(node.id)}
     >
       {!isEditing ? (
         // Render mode: show iframe with srcDoc so HTML executes safely inside node bounds

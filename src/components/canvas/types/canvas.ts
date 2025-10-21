@@ -11,6 +11,9 @@ export interface BaseNode {
   fileUrl?: string
   isSelected?: boolean
   isDragging?: boolean
+  // z-band properties for layered stacking
+  band?: 'A' | 'B' | 'C' | 'D' | 'E'
+  z?: number
   // Folder specific
   children?: string[]
   view?: 'compact' | 'window' | 'fullscreen'

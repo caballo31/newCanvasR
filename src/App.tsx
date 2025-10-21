@@ -1,4 +1,3 @@
-import React from 'react'
 import RisspoCanvas from './components/canvas/RisspoCanvas'
 import './App.css'
 
