@@ -53,11 +53,19 @@ const RisspoCanvas: React.FC = () => {
     | null
     | { x: number; y: number; w: number; h: number }
   >(null)
+  // track marquee modifier (replace / add / subtract) so mouseup can act accordingly
+  const marqueeModifierRef = useRef<'replace' | 'add' | 'subtract'>('replace')
+  // if a marquee drag happened, suppress the subsequent click event to avoid single-select override
+  const suppressNextClickRef = useRef(false)
+  // re-assert marquee selection on next tick to avoid accidental overrides
+  const marqueeResultRef = useRef<string[] | null>(null)
   // Group drag info when dragging multiple nodes
   const [groupDragStart, setGroupDragStart] = useState<
     | null
     | { startX: number; startY: number; items: Array<{ id: string; x: number; y: number }> }
   >(null)
+  // track if any dragging actually moved beyond a small threshold
+  const dragMovedRef = useRef(false)
   const [editingNode, setEditingNode] = useState<string | null>(null)
   const [pendingEditNode, setPendingEditNode] = useState<string | null>(null)
   const [titleEdit, setTitleEdit] = useState<{ id: string | null; value: string }>({
@@ -109,6 +117,17 @@ const RisspoCanvas: React.FC = () => {
       return `${base}...${ext}`
     }
     return name.slice(0, max - 3) + '...'
+  }
+
+  const isTextInputActive = () => {
+    try {
+      const a = document.activeElement as HTMLElement | null
+      if (!a) return false
+      const tag = a.tagName.toLowerCase()
+      return tag === 'input' || tag === 'textarea' || (a as any).isContentEditable
+    } catch {
+      return false
+    }
   }
 
   const setSingleSelection = (nodeId: string): void => {
@@ -318,6 +337,8 @@ const RisspoCanvas: React.FC = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.code === 'Space') {
+        // don't start pan when typing in an input or when editing a node
+        if (isTextInputActive() || editingNode || pendingEditNode) return
         e.preventDefault()
         setIsSpacePressed(true)
         if (canvasRef.current) {
@@ -351,6 +372,20 @@ const RisspoCanvas: React.FC = () => {
         dispatchAction({ type: 'SELECT_ONE', id: null })
       }
 
+      // Select all visible nodes (Ctrl/Cmd + A)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+        e.preventDefault()
+        // select all nodes that are visible in the current canvas context
+        const visible = nodes.filter((n) => {
+          // visible if top-level or parent is open window/fullscreen
+          if (!n.parent) return true
+          const parent = nodes.find((p) => p.id === n.parent)
+          return !!parent && (parent.view === 'window' || parent.view === 'fullscreen')
+        })
+        const ids = visible.map((n) => n.id)
+        dispatchAction({ type: 'SET_SELECTED', ids })
+      }
+
       // Track Alt state for snap override
       if (e.key === 'Alt') setIsAltPressed(true)
       // Start pan with Space
@@ -359,12 +394,17 @@ const RisspoCanvas: React.FC = () => {
         if (canvasRef.current) canvasRef.current.style.cursor = 'grab'
       }
 
-      // Zoom presets
-      if ((e.ctrlKey || e.metaKey) && ['1', '2', '3'].includes(e.key)) {
-        e.preventDefault()
-        const preset = e.key
-        const scale = preset === '1' ? 1 : preset === '2' ? 0.5 : 2
-        setViewport((prev) => ({ ...prev, scale }))
+      // Zoom presets and center (Ctrl/Cmd + 0..3)
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === '0') {
+          e.preventDefault()
+          setViewport((prev) => centerViewportOnContent({ ...prev, scale: 1 }, nodes, window.innerWidth, window.innerHeight))
+        } else if (['1', '2', '3'].includes(e.key)) {
+          e.preventDefault()
+          const preset = e.key
+          const scale = preset === '1' ? 1 : preset === '2' ? 0.5 : 2
+          setViewport((prev) => ({ ...prev, scale }))
+        }
       }
     }
 
@@ -492,27 +532,37 @@ const RisspoCanvas: React.FC = () => {
       return
     }
 
+    // Ignore clicks on overlays/modal layers
+    if ((e.target as HTMLElement).closest('[data-overlay]')) return
+
     // If clicked on a node header -> select + prepare to drag
     const headerEl = target.closest('[data-drag-handle]') as HTMLElement | null
     if (headerEl) {
       const nodeElement = headerEl.closest('[data-node-id]') as HTMLElement | null
       const nodeId = nodeElement?.dataset.nodeId
       if (nodeId) {
-        // If modifier key (Shift/Ctrl/Cmd/Alt) is pressed, toggle selection instead of starting a drag
-        if (e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) {
+        // Clicking a header should focus the window but not change internal
+        // child selection for window-like nodes. Allow modifier-based toggle.
+        const clickedNode = nodes.find((n) => n.id === nodeId)
+        if (e.shiftKey || e.altKey) {
           toggleSelection(nodeId)
           return
         }
-        const isMulti = selectedIds.includes(nodeId) && selectedIds.length > 1
-        if (!isMulti) {
-          setSingleSelection(nodeId)
+        const isWindowLike = clickedNode && (clickedNode.view === 'window' || clickedNode.view === 'fullscreen')
+        if (!isWindowLike) {
+          const isMulti = selectedIds.includes(nodeId) && selectedIds.length > 1
+          if (!isMulti) {
+            setSingleSelection(nodeId)
+          } else {
+            setSelectedNode(nodeId)
+          }
         } else {
-          // keep selectedIds as-is and set primary
+          // focus window without altering selection of internal children
           setSelectedNode(nodeId)
         }
         setHeaderActive(nodeId)
-        const node = nodes.find((n) => n.id === nodeId)
-        if (node) {
+        const nodeLookup = nodes.find((n) => n.id === nodeId)
+        if (nodeLookup) {
           // If we clicked any node that is part of a multi-selection, start a group drag
           if (selectedIds.length > 1 && selectedIds.includes(nodeId)) {
             const items = selectedIds
@@ -522,11 +572,29 @@ const RisspoCanvas: React.FC = () => {
               })
               .filter((x): x is { id: string; x: number; y: number } => !!x)
             setGroupDragStart({ startX: e.clientX, startY: e.clientY, items })
+            dragMovedRef.current = false
             setNodes((prev) => prev.map((n) => (selectedIds.includes(n.id) ? { ...n, isDragging: true } : n)))
           } else {
-            setNodeDragStart({ x: e.clientX, y: e.clientY, nodeX: node.x, nodeY: node.y })
+            setNodeDragStart({ x: e.clientX, y: e.clientY, nodeX: nodeLookup.x, nodeY: nodeLookup.y })
+            dragMovedRef.current = false
             setNodes((prev) => prev.map((n) => (n.id === nodeId ? { ...n, isDragging: true } : n)))
           }
+        }
+      }
+      return
+    }
+
+    // If clicked on a folder child item (data-child-id), select the child and do not
+    // select the folder container itself. Let modifiers apply (Alt/Shift for toggle).
+    const childEl = target.closest('[data-child-id]') as HTMLElement | null
+    if (childEl) {
+      const childId = childEl.getAttribute('data-child-id')
+      if (childId) {
+        if (e.shiftKey || e.altKey) {
+          toggleSelection(childId)
+        } else {
+          setSingleSelection(childId)
+          bringToFront(childId)
         }
       }
       return
@@ -538,7 +606,7 @@ const RisspoCanvas: React.FC = () => {
       const nodeId = nodeElement.dataset.nodeId
       if (nodeId) {
         const node = nodes.find((n) => n.id === nodeId)
-        if (e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) {
+        if (e.shiftKey || e.altKey) {
           // Toggle selection and stop — don't start dragging here because
           // selectedIds hasn't updated synchronously and subsequent logic
           // may incorrectly start a single-node drag.
@@ -555,6 +623,7 @@ const RisspoCanvas: React.FC = () => {
               })
               .filter((x): x is { id: string; x: number; y: number } => !!x)
             setGroupDragStart({ startX: e.clientX, startY: e.clientY, items })
+            dragMovedRef.current = false
             setNodes((prev) => prev.map((n) => (selectedIds.includes(n.id) ? { ...n, isDragging: true } : n)))
           } else {
             setSingleSelection(nodeId)
@@ -567,6 +636,7 @@ const RisspoCanvas: React.FC = () => {
           // If we already started a group drag above, nodes are already flagged; otherwise start single drag
           if (!(groupDragStart && groupDragStart.items.length > 0) && node) {
             setNodeDragStart({ x: e.clientX, y: e.clientY, nodeX: node.x, nodeY: node.y })
+            dragMovedRef.current = false
             setNodes((prev) => prev.map((n) => (n.id === nodeId ? { ...n, isDragging: true } : n)))
           }
         } else {
@@ -577,16 +647,45 @@ const RisspoCanvas: React.FC = () => {
       return
     }
 
+    // If click originated inside a window-like node, but not on header/child,
+    // then clear selection of nodes internal to that window only.
+    const nodeAtTarget = (e.target as HTMLElement).closest('[data-node-id]') as HTMLElement | null
+    if (nodeAtTarget) {
+      const nodeIdAt = nodeAtTarget.getAttribute('data-node-id')
+      const nodeAt = nodeIdAt ? nodes.find(n => n.id === nodeIdAt) : undefined
+      if (nodeAt && (nodeAt.view === 'window' || nodeAt.view === 'fullscreen')) {
+        // if click happened on header or on a child item, let other handlers run
+        if (target.closest('[data-drag-handle]') || target.closest('[data-child-id]')) {
+          // let header/child logic above handle it
+        } else {
+          // clear selection of nodes whose parent === this window, keep global selection
+          const remaining = selectedIds.filter((id) => {
+            const n = nodes.find((nn) => nn.id === id)
+            return !(n && n.parent === nodeAt.id)
+          })
+          dispatchAction({ type: 'SET_SELECTED', ids: remaining })
+          return
+        }
+      }
+    }
+
     // Click on empty canvas: start marquee selection
     const canvasPos = {
       x: (e.clientX - viewport.x) / viewport.scale,
       y: (e.clientY - viewport.y) / viewport.scale,
     }
+    // Track modifier to decide whether marquee replaces, adds or subtracts selection
+    if (e.shiftKey) marqueeModifierRef.current = 'add'
+    else if (e.altKey) marqueeModifierRef.current = 'subtract'
+    else marqueeModifierRef.current = 'replace'
+
     setIsMarqueeActive(true)
     setMarqueeStart(canvasPos)
     setMarqueeRect({ x: canvasPos.x, y: canvasPos.y, w: 0, h: 0 })
-    setSelectedNode(null)
-    setSelectedIds([])
+    if (marqueeModifierRef.current === 'replace') {
+      setSelectedNode(null)
+      setSelectedIds([])
+    }
     setHeaderActive(null)
   }
 
@@ -680,6 +779,11 @@ const RisspoCanvas: React.FC = () => {
     if (groupDragStart) {
       const deltaX = (e.clientX - groupDragStart.startX) / viewport.scale
       const deltaY = (e.clientY - groupDragStart.startY) / viewport.scale
+      if (!dragMovedRef.current) {
+        const dx = e.clientX - groupDragStart.startX
+        const dy = e.clientY - groupDragStart.startY
+        if (Math.hypot(dx, dy) > 2) dragMovedRef.current = true
+      }
       const itemsMap = new Map(groupDragStart.items.map((i) => [i.id, i]))
       setNodes((prev) =>
         prev.map((node) => {
@@ -696,6 +800,9 @@ const RisspoCanvas: React.FC = () => {
     if (selectedNode && nodeDragStart.x !== 0) {
       const deltaX = e.clientX - nodeDragStart.x
       const deltaY = e.clientY - nodeDragStart.y
+      if (!dragMovedRef.current) {
+        if (Math.hypot(deltaX, deltaY) > 2) dragMovedRef.current = true
+      }
 
       setNodes((prev) =>
         prev.map((node) =>
@@ -826,8 +933,9 @@ const RisspoCanvas: React.FC = () => {
       )
     }
 
-    // If we just moved or resized una selección, aplicar snap-to-grid via reducer (salvo Alt)
-    if (!isAltPressed) {
+    // If we just moved o redimensionamos, aplicar snap-to-grid (salvo Alt), sólo si hubo movimiento real
+    // y no hubo marquee (que maneja su propio resultado)
+    if (!isAltPressed && !isMarqueeActive && dragMovedRef.current) {
       if (groupDragStart && selectedIds.length > 0) {
         dispatchAction({ type: 'SNAP_SELECTED', grid: GRID })
       } else if (selectedNode) {
@@ -843,10 +951,24 @@ const RisspoCanvas: React.FC = () => {
       canvasRef.current.style.cursor = 'default'
     }
 
-    // Finish marquee selection
-    if (isMarqueeActive && marqueeRect) {
-      const topNodes = nodes.filter((n) => !n.parent && n.view !== 'fullscreen')
-      const hit = topNodes.filter((n) => {
+  // Finish marquee selection
+  if (isMarqueeActive && marqueeRect) {
+      // For marquee selection we require full containment of the node bounding box
+      // within the marquee rect. Also, ignore nodes that are children of a closed
+      // folder (i.e., parent exists but not open as window/fullscreen).
+      const mx1 = marqueeRect.x
+      const my1 = marqueeRect.y
+      const mx2 = marqueeRect.x + marqueeRect.w
+      const my2 = marqueeRect.y + marqueeRect.h
+
+      const candidates = nodes.filter((n) => n.view !== 'fullscreen')
+      const hit = candidates.filter((n) => {
+        // Skip nodes that are children of closed folders
+        if (n.parent) {
+          const parent = nodes.find((p) => p.id === n.parent)
+          if (!parent) return false
+          if (!(parent.view === 'window' || parent.view === 'fullscreen')) return false
+        }
         const sz = getVisualSize(n)
         const w = sz.width
         const h = sz.height
@@ -854,21 +976,53 @@ const RisspoCanvas: React.FC = () => {
         const ny1 = n.y
         const nx2 = n.x + w
         const ny2 = n.y + h
-        const mx1 = marqueeRect.x
-        const my1 = marqueeRect.y
-        const mx2 = marqueeRect.x + marqueeRect.w
-        const my2 = marqueeRect.y + marqueeRect.h
-        return nx1 < mx2 && nx2 > mx1 && ny1 < my2 && ny2 > my1
+        // fully inside marquee
+        const fullyInside = nx1 >= mx1 && ny1 >= my1 && nx2 <= mx2 && ny2 <= my2
+        if (fullyInside) return true
+        // center inside (tolerant for small rounding issues)
+        const cx = n.x + w / 2
+        const cy = n.y + h / 2
+        if (cx >= mx1 && cx <= mx2 && cy >= my1 && cy <= my2) return true
+        // or any intersection of bounding boxes
+        const intersects = nx1 < mx2 && nx2 > mx1 && ny1 < my2 && ny2 > my1
+        return intersects
       })
-      const ids = hit.map((n) => n.id)
-      dispatchAction({ type: 'SET_SELECTED', ids })
-    }
-    setIsMarqueeActive(false)
-    setMarqueeStart(null)
-    setMarqueeRect(null)
 
-    // Detect drop into folder using world-space hit-testing (no DOM queries)
-    if (selectedNode) {
+      const ids = hit.map((n) => n.id)
+      let finalIds = ids
+      if (marqueeModifierRef.current === 'replace') {
+        dispatchAction({ type: 'SET_SELECTED', ids })
+      } else if (marqueeModifierRef.current === 'add') {
+        const union = Array.from(new Set([...selectedIds, ...ids]))
+        finalIds = union
+        dispatchAction({ type: 'SET_SELECTED', ids: union })
+      } else if (marqueeModifierRef.current === 'subtract') {
+        const diff = selectedIds.filter((id) => !ids.includes(id))
+        finalIds = diff
+        dispatchAction({ type: 'SET_SELECTED', ids: diff })
+      }
+      marqueeResultRef.current = finalIds
+      // If user actually dragged a visible rectangle, block the immediate click
+      if (marqueeRect.w > 2 || marqueeRect.h > 2) {
+        suppressNextClickRef.current = true
+      }
+      // Clear marquee UI and exit early to avoid any further mouseup side-effects
+      setIsMarqueeActive(false)
+      setMarqueeStart(null)
+      setMarqueeRect(null)
+      marqueeModifierRef.current = 'replace'
+      // Re-assert selection in next macrotask in case any late handler changed it
+      setTimeout(() => {
+        if (marqueeResultRef.current) {
+          dispatchAction({ type: 'SET_SELECTED', ids: marqueeResultRef.current })
+          marqueeResultRef.current = null
+        }
+      }, 0)
+      return
+    }
+
+    // Detect drop into folder only if hubo un drag real
+    if (selectedNode && dragMovedRef.current) {
       const world = toWorld(pointerPos, viewport)
       const target = findDropTarget(nodes, world)
       const folderId = target.folderId
@@ -876,6 +1030,9 @@ const RisspoCanvas: React.FC = () => {
         dispatchAction({ type: 'ADD_TO_FOLDER', childId: selectedNode, folderId })
       }
     }
+    // Mantener la selección tras un drag real; no limpiar aquí para que el elemento
+    // permanezca seleccionado como feedback y listo para siguientes acciones
+    dragMovedRef.current = false
   }
 
   // Wheel handling implemented inline on canvas div (Ctrl+wheel to zoom centered, otherwise vertical pan)
@@ -1219,6 +1376,13 @@ const RisspoCanvas: React.FC = () => {
       <div
         ref={canvasRef}
         className="w-full h-full"
+        onClickCapture={(e) => {
+          if (suppressNextClickRef.current) {
+            e.stopPropagation()
+            e.preventDefault()
+            suppressNextClickRef.current = false
+          }
+        }}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -1233,23 +1397,26 @@ const RisspoCanvas: React.FC = () => {
         onPointerDown={(e) => handlePointerDown(e)}
         onPointerUp={(e) => { handlePointerUpGesture(e); handleMouseUp() }}
         onWheel={(e) => {
-          // Advanced wheel handler: Ctrl/Cmd+wheel -> zoom centered on cursor; otherwise pan vertically
-          if (e.ctrlKey || e.metaKey) {
-            e.preventDefault()
-            const rect = canvasRef.current?.getBoundingClientRect()
-            if (!rect) return
-            const prevScale = viewport.scale
-            const delta = -e.deltaY * 0.0015
-            const nextScale = Math.min(Math.max(0.1, prevScale + delta), 8)
-            const worldX = (e.clientX - viewport.x) / prevScale
-            const worldY = (e.clientY - viewport.y) / prevScale
-            const newX = e.clientX - worldX * nextScale
-            const newY = e.clientY - worldY * nextScale
-            setViewport({ ...viewport, scale: nextScale, x: newX, y: newY })
-          } else {
+          // Wheel zoom by default (cursor-centered). Hold Shift to pan vertically.
+          if (isTextInputActive() || editingNode || pendingEditNode) return
+          // If Shift pressed -> pan vertically
+          if (e.shiftKey) {
             e.preventDefault()
             setViewport((prev) => ({ ...prev, y: prev.y - e.deltaY }))
+            return
           }
+          e.preventDefault()
+          const rect = canvasRef.current?.getBoundingClientRect()
+          if (!rect) return
+          const prevScale = viewport.scale
+          // multiplicative delta for smooth zoom
+          const factor = Math.exp(-e.deltaY * 0.0015)
+          const nextScale = Math.min(Math.max(0.1, prevScale * factor), 8)
+          const worldX = (e.clientX - viewport.x) / prevScale
+          const worldY = (e.clientY - viewport.y) / prevScale
+          const newX = e.clientX - worldX * nextScale
+          const newY = e.clientY - worldY * nextScale
+          setViewport({ ...viewport, scale: nextScale, x: newX, y: newY })
         }}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
@@ -1263,6 +1430,7 @@ const RisspoCanvas: React.FC = () => {
             transformOrigin: '0 0',
           }}
         >
+          {/* grid removed as requested */}
           {renderNodes()}
           {/* DnD ghost for dragging nodes/groups */}
           {(((selectedNode && nodeDragStart.x !== 0) || groupDragStart) && (selectedIds.length > 0 || selectedNode)) && (() => {

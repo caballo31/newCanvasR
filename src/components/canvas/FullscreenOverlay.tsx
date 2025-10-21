@@ -47,6 +47,7 @@ const FullscreenOverlay: React.FC<FullscreenOverlayProps> = ({
 }) => {
   return (
     <div
+      data-overlay
       style={{
         position: 'fixed',
         inset: 0,

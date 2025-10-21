@@ -78,6 +78,7 @@ const FolderNode: React.FC<FolderNodeProps> = ({ node, onUpdate, allNodes, onAdd
           {children.map((child) => (
             <div
               key={child.id}
+              data-child-id={child.id}
               className={`relative bg-gray-50 rounded text-center text-sm shadow-sm ${
                 selectedChild === child.id ? 'ring-2 ring-orange-300' : ''
               }`}

@@ -45,9 +45,10 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
     anchorNode = nodes.find((n) => n.id === anchorId)
     if (!anchorNode) return null
     if (anchorNode.view === 'fullscreen') return null
-    const screenX = (anchorNode.x + viewport.x) * viewport.scale
-    const screenY = (anchorNode.y + viewport.y) * viewport.scale
-    left = screenX + (anchorNode.view === 'window' ? (anchorNode.width * viewport.scale) / 2 : COMPACT_NODE_SIZE.width / 2)
+    // compute screen-space position from world coords: screen = world * scale + viewportOffset
+    const screenX = anchorNode.x * viewport.scale + viewport.x
+    const screenY = anchorNode.y * viewport.scale + viewport.y
+    left = screenX + (anchorNode.view === 'window' ? (anchorNode.width * viewport.scale) / 2 : (COMPACT_NODE_SIZE.width * viewport.scale) / 2)
     top = screenY - (anchorNode.view === 'window' ? 28 : 10)
   }
 
