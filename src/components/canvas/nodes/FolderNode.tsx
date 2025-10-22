@@ -7,9 +7,11 @@ type FolderNodeProps = NodeProps & {
   allNodes?: BaseNode[]
   onAddToFolder?: (childId: string, folderId: string) => void
   onClearSelection?: () => void
+  selectedIds?: string[]
+  onToggleSelectFromFolder?: (childId: string, folderId: string, add?: boolean) => void
 }
 
-const FolderNode: React.FC<FolderNodeProps> = ({ node, onUpdate, allNodes, onAddToFolder, onSelect, onClearSelection }) => {
+const FolderNode: React.FC<FolderNodeProps> = ({ node, onUpdate, allNodes, onAddToFolder, onSelect, onClearSelection, selectedIds, onToggleSelectFromFolder }) => {
   const nodesMap = useMemo(() => {
     const map: Record<string, BaseNode> = {}
     ;(allNodes || []).forEach((n) => {
@@ -25,6 +27,7 @@ const FolderNode: React.FC<FolderNodeProps> = ({ node, onUpdate, allNodes, onAdd
 
   const isWindowLike = node.view === 'window' || node.view === 'fullscreen'
   const [selectedChild, setSelectedChild] = useState<string | null>(null)
+  const selectedIdsFromCanvas = selectedIds || []
   const holderRef = useRef<HTMLDivElement | null>(null)
 
   // Detect clicks outside the folder content to clear local child selection.
@@ -126,7 +129,7 @@ const FolderNode: React.FC<FolderNodeProps> = ({ node, onUpdate, allNodes, onAdd
             key={child.id}
             data-child-id={child.id}
             className={`relative bg-gray-50 rounded text-center text-sm shadow-sm ${
-              selectedChild === child.id ? 'ring-2 ring-orange-300' : ''
+              selectedChild === child.id || selectedIdsFromCanvas.includes(child.id) ? 'ring-2 ring-orange-300' : ''
             }`}
             style={{
               padding: 0,
@@ -136,20 +139,28 @@ const FolderNode: React.FC<FolderNodeProps> = ({ node, onUpdate, allNodes, onAdd
             }}
             draggable={true}
             onDragStart={(e) => {
-              e.dataTransfer.setData('text/node-id', child.id)
+              // If multiple items are selected in the canvas, include the full list
+              // so drops can handle group moves. Fallback to single id for compatibility.
               try {
+                const idsToDrag = (selectedIds && selectedIds.length > 0 && selectedIds.includes(child.id)) ? selectedIds : [child.id]
+                e.dataTransfer.setData('text/node-ids', JSON.stringify(idsToDrag))
+                e.dataTransfer.setData('text/node-id', child.id)
                 e.dataTransfer.effectAllowed = 'move'
               } catch {}
             }}
             onClick={(e) => {
-              // Stop propagation to keep event handling local, then also
-              // notify canvas selection so folder deselects and child becomes selected.
+              // Stop propagation to keep event handling local
               e.stopPropagation()
               setSelectedChild(child.id)
-              try {
-                // call the canvas-level onSelect passed via props
-                onSelect && onSelect(child.id)
-              } catch {}
+              // If a special folder-aware toggle was provided, use it so modifier (Alt/Shift)
+              // selection semantics inside folders match canvas behavior.
+              if (onToggleSelectFromFolder) {
+                // add = Alt pressed -> additive selection
+                const add = (e.altKey || e.shiftKey)
+                onToggleSelectFromFolder(child.id, node.id, add)
+              } else {
+                try { onSelect && onSelect(child.id) } catch {}
+              }
             }}
             onDoubleClick={(e) => {
               e.stopPropagation()

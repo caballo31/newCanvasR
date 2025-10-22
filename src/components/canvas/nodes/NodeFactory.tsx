@@ -14,6 +14,10 @@ interface NodeFactoryProps extends Omit<NodeProps, 'node'> {
   externalEditing?: boolean
   onEditingDone?: () => void
   onClearSelection?: () => void
+  // selected ids from canvas so folder can render per-child highlight
+  selectedIds?: string[]
+  // folder-aware toggle handler: (childId, folderId) -> toggles child selection and ensures folder isn't left selected
+  onToggleSelectFromFolder?: (childId: string, folderId: string) => void
 }
 
 const NodeFactoryComponent: React.FC<NodeFactoryProps> = (props) => {
@@ -174,6 +178,8 @@ const NodeFactoryComponent: React.FC<NodeFactoryProps> = (props) => {
             allNodes={props.allNodes}
             onAddToFolder={props.onAddToFolder}
             onClearSelection={props.onClearSelection}
+            selectedIds={props.selectedIds}
+            onToggleSelectFromFolder={props.onToggleSelectFromFolder}
           />
         </Suspense>
       )

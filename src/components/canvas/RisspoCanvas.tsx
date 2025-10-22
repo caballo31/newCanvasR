@@ -277,7 +277,42 @@ const RisspoCanvas: React.FC = () => {
   const handleDrop = (e: React.DragEvent): void => {
     e.preventDefault()
     try { console.debug('[RisspoCanvas] handleDrop') } catch {}
+    const draggedNodeIdsRaw = e.dataTransfer.getData('text/node-ids')
     const draggedNodeId = e.dataTransfer.getData('text/node-id')
+    // Prefer group ids if provided
+    if (draggedNodeIdsRaw) {
+      try {
+        const ids: string[] = JSON.parse(draggedNodeIdsRaw)
+        if (ids && ids.length > 0) {
+          // compute drop top-left in world coords
+          let dropX = (e.clientX - viewport.x) / viewport.scale
+          let dropY = (e.clientY - viewport.y) / viewport.scale
+          if (!isAltPressed) {
+            dropX = Math.round(dropX / GRID) * GRID
+            dropY = Math.round(dropY / GRID) * GRID
+          }
+          // compute bounding box of dragged items to preserve relative positions
+          const draggedNodes = nodes.filter(n => ids.includes(n.id))
+          if (draggedNodes.length === 0) return
+          const minX = Math.min(...draggedNodes.map(n => n.x))
+          const minY = Math.min(...draggedNodes.map(n => n.y))
+          // Move nodes preserving offset from top-left to drop location
+          setNodes((prev) => prev.map(n => {
+            if (!ids.includes(n.id)) return n
+            const offsetX = n.x - minX
+            const offsetY = n.y - minY
+            return { ...n, x: dropX + offsetX, y: dropY + offsetY, parent: undefined }
+          }))
+          // Remove moved ids from any folder children arrays in one pass
+          setNodes((prev) => prev.map((n) => (n.children ? { ...n, children: n.children.filter((id) => !ids.includes(id)) } : n)))
+          // Clear selection after dropping to canvas
+          dispatchAction({ type: 'SET_SELECTED', ids: [] })
+          return
+        }
+      } catch {
+        // fallthrough to single-id handling
+      }
+    }
     if (draggedNodeId) {
       // If a dataTransfer node id was provided it means an external/drop from folder list.
       // Treat drop as moving that single node here.
@@ -294,6 +329,8 @@ const RisspoCanvas: React.FC = () => {
       setNodes((prev) =>
         prev.map((n) => (n.children ? { ...n, children: n.children.filter((id) => id !== draggedNodeId) } : n))
       )
+      // Clear selection after single drop
+      dispatchAction({ type: 'SET_SELECTED', ids: [] })
       return
     }
     // First, try to detect HTML content dropped as text (e.g., from browser selection or another page)
@@ -1204,6 +1241,30 @@ const RisspoCanvas: React.FC = () => {
             }
           }
         }
+          else {
+            // Dropped outside any folder: if any of the moved items were inside a folder,
+            // remove their parent so they become top-level on the canvas.
+            const candidates = selectedIds.length > 0 ? selectedIds : selectedNode ? [selectedNode] : []
+            if (candidates.length > 0) {
+              // Single pass: remove parent from candidates and remove candidates from any folder children arrays
+              setNodes((prev) =>
+                prev.map((n) => {
+                  // if this node is one of the moved candidates, clear its parent
+                  if (candidates.includes(n.id)) {
+                    return { ...n, parent: undefined }
+                  }
+                  // otherwise if it's a folder with children, filter out moved ids
+                  if (n.children && n.children.length > 0) {
+                    const filtered = n.children.filter((id) => !candidates.includes(id))
+                    if (filtered.length !== n.children.length) return { ...n, children: filtered }
+                  }
+                  return n
+                })
+              )
+              // After moving out to canvas, clear global selection so none remain selected
+              dispatchAction({ type: 'SET_SELECTED', ids: [] })
+            }
+          }
       }
     }
     // Mantener la selección tras un drag real; no limpiar aquí para que el elemento
@@ -1372,6 +1433,20 @@ const RisspoCanvas: React.FC = () => {
                   dispatchAction({ type: 'ADD_TO_FOLDER', childId, folderId })
                 }}
                 onClearSelection={() => dispatchAction({ type: 'SELECT_ONE', id: null })}
+                selectedIds={selectedIds}
+                onToggleSelectFromFolder={(childId: string, _folderId: string, add?: boolean) => {
+                  // When selecting a child from a folder we want to ensure the folder
+                  // itself is not part of the selection. If add is true, add to selection
+                  // otherwise select only the child.
+                  if (add) {
+                    const union = Array.from(new Set([...selectedIds, childId].filter(Boolean)))
+                    // remove the folder id from selection if present
+                    const filtered = union.filter(id => id !== node.id)
+                    dispatchAction({ type: 'SET_SELECTED', ids: filtered })
+                  } else {
+                    dispatchAction({ type: 'SELECT_ONE', id: childId })
+                  }
+                }}
               />
             </div>
 
