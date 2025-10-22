@@ -53,19 +53,28 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
     const anchorId = selectedNode || (selectedIds.length ? selectedIds[selectedIds.length - 1] : null)
     anchorNode = nodes.find((n) => n.id === anchorId)
     if (!anchorNode) return null
-    // if the anchor node is inside a compact folder, don't show toolbar
-    if (anchorNode.parent) {
-      const parent = nodes.find((p) => p.id === anchorNode!.parent)
-      if (parent && parent.view !== 'window' && parent.view !== 'fullscreen') return null
+
+    // If the anchor is a child of a folder, use the folder (parent) as the visual anchor
+    const anchorParentId = anchorNode.parent
+    if (anchorParentId) {
+      const parent = nodes.find((p) => p.id === anchorParentId)
+      if (!parent) return null
+      // If the parent folder is compact/closed, do not show toolbar
+      if (parent.view !== 'window' && parent.view !== 'fullscreen') return null
+      anchorNode = parent
     }
+
+    // Do not show toolbar for fullscreen nodes
     if (anchorNode.view === 'fullscreen') return null
+
     // compute screen-space position from world coords: screen = world * scale + viewportOffset
     const screenX = anchorNode.x * viewport.scale + viewport.x
     const screenY = anchorNode.y * viewport.scale + viewport.y
-    left = screenX + (anchorNode.view === 'window' ? (anchorNode.width * viewport.scale) / 2 : (COMPACT_NODE_SIZE.width * viewport.scale) / 2)
-    top = screenY - (anchorNode.view === 'window' ? 28 : 10)
+    const nodeWidth = anchorNode.view === 'window' ? anchorNode.width : COMPACT_NODE_SIZE.width
+    left = screenX + (nodeWidth * viewport.scale) / 2
+    const offsetY = anchorNode.view === 'window' ? 28 : 10
+    top = screenY - offsetY
   }
-
   const ids = selectedIds.length > 0 ? selectedIds : anchorNode ? [anchorNode.id] : []
 
   return (

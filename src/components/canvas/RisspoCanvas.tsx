@@ -616,20 +616,40 @@ const RisspoCanvas: React.FC = () => {
       return
     }
 
-    // If clicked on a folder child item (data-child-id), select the child and do not
-    // select the folder container itself. Let modifiers apply (Alt/Shift for toggle).
+    // If clicked on a folder child item (data-child-id), select the child.
+    // Let modifiers work (Alt/Shift for multi-select), then allow preselect/drag
     const childEl = target.closest('[data-child-id]') as HTMLElement | null
     if (childEl) {
       const childId = childEl.getAttribute('data-child-id')
       if (childId) {
+        // Respect modifiers for multi-select
         if (e.shiftKey || e.altKey) {
           toggleSelection(childId)
-        } else {
-          setSingleSelection(childId)
-          bringToFront(childId)
+          return
         }
+        
+        // Single select + setup preselect for drag
+        const alreadySelected = selectedIds.includes(childId)
+        if (!alreadySelected) {
+          dispatchAction({ type: 'SELECT_ONE', id: childId })
+        }
+        
+        // Setup preselect timer for drag-on-hold
+        clearPreselect()
+        const timer = window.setTimeout(() => {
+          startDragFromPreselect(childId, e.clientX, e.clientY)
+        }, HOLD_MS)
+
+        preselectRef.current = {
+          state: 'preselect',
+          nodeId: childId,
+          downX: e.clientX,
+          downY: e.clientY,
+          timer,
+          startTime: Date.now()
+        }
+        return
       }
-      return
     }
 
     // PRESELECT: if we clicked a node (but not on header or child), prepare preselect state
@@ -989,6 +1009,33 @@ const RisspoCanvas: React.FC = () => {
       window.removeEventListener('pointercancel', onUp)
     }
   }, [])
+
+  // Listen to folder-local toolbar actions bubbled up as custom events
+  useEffect(() => {
+    const el = canvasRef.current
+    if (!el) return
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent
+      const detail = ce.detail || {}
+      const action = detail.action as string | undefined
+      const ids: string[] = Array.isArray(detail.ids)
+        ? detail.ids
+        : (detail.id ? [detail.id as string] : [])
+      if (!action || ids.length === 0) return
+      if (action === 'delete') {
+        deleteNodes(ids)
+      } else if (action === 'duplicate') {
+        if (ids.length > 1) {
+          dispatchAction({ type: 'SET_SELECTED', ids })
+          dispatchAction({ type: 'DUPLICATE_SELECTED' })
+        } else {
+          duplicateNode(ids[0])
+        }
+      }
+    }
+    el.addEventListener('risspo-folder-action', handler as EventListener)
+    return () => el.removeEventListener('risspo-folder-action', handler as EventListener)
+  }, [canvasRef, nodes])
 
     
 

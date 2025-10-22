@@ -32,8 +32,6 @@ const FolderNode: React.FC<FolderNodeProps> = ({ node, onUpdate, allNodes, onAdd
         data-node-id={node.id}
         style={{ width: '100%', height: '100%', position: 'relative', userSelect: 'none' }}
       >
-        {/* Per-node contextual menu removed — global floating toolbar is used instead */}
-
         <div className="w-full h-full flex items-center justify-center p-2 bg-gray-50 rounded-lg">
           <div className="text-center">
             <FolderIcon size={28} className="text-gray-500 mb-2 mx-auto" />
@@ -44,7 +42,7 @@ const FolderNode: React.FC<FolderNodeProps> = ({ node, onUpdate, allNodes, onAdd
     )
   }
 
-  // Window view: show a simple window with children listed and allow dropping
+  // Window view: show children grid (content area starts at top: 56px like other windows)
   return (
     <div
       data-node-id={node.id}
@@ -64,50 +62,56 @@ const FolderNode: React.FC<FolderNodeProps> = ({ node, onUpdate, allNodes, onAdd
         }
       }}
     >
-      {/* Per-node contextual menu removed — global floating toolbar is used instead */}
-
-      <div className="w-full h-full" style={{ padding: 8 }}>
-        <div
-          className="w-full h-full overflow-auto grid grid-cols-3 gap-2"
-          style={{ alignItems: 'start', gridAutoRows: 'min-content' }}
-          onClick={() => {
-            // clicking on the folder background clears any child selection
-            setSelectedChild(null)
-          }}
-        >
-          {children.map((child) => (
-            <div
-              key={child.id}
-              data-child-id={child.id}
-              className={`relative bg-gray-50 rounded text-center text-sm shadow-sm ${
-                selectedChild === child.id ? 'ring-2 ring-orange-300' : ''
-              }`}
-              style={{ padding: 0, display: 'flex', justifyContent: 'center' }}
-              draggable={true}
-              onDragStart={(e) => {
-                e.dataTransfer.setData('text/node-id', child.id)
-                try {
-                  e.dataTransfer.effectAllowed = 'move'
-                } catch {}
-              }}
-              // Let clicks bubble to canvas so modifiers (Alt/Ctrl/Shift) are respected;
-              // still set selectedChild for visual feedback inside folder.
-              onClick={() => {
-                // allow click to bubble to canvas so modifier-based selection works
-                setSelectedChild(child.id)
-              }}
-              onDoubleClick={(e) => {
-                e.stopPropagation()
-                // open child in fullscreen directly
-                onUpdate && onUpdate(child.id, { view: 'fullscreen' })
-              }}
-            >
-              <div style={{ pointerEvents: 'none', padding: 8 }}>
-                <CompactThumb type={child.type} title={child.title} label={child.content} />
-              </div>
+      {/* Content area (offset by 56px top for header, 12px padding) */}
+      <div
+        className="w-full h-full overflow-auto grid grid-cols-3 gap-2"
+        style={{
+          padding: 12,
+          boxSizing: 'border-box',
+          alignItems: 'start',
+          gridAutoRows: 'min-content',
+        }}
+        onClick={() => {
+          // clicking on the folder background clears any child selection
+          setSelectedChild(null)
+        }}
+      >
+        {children.map((child) => (
+          <div
+            key={child.id}
+            data-child-id={child.id}
+            className={`relative bg-gray-50 rounded text-center text-sm shadow-sm ${
+              selectedChild === child.id ? 'ring-2 ring-orange-300' : ''
+            }`}
+            style={{
+              padding: 0,
+              display: 'flex',
+              justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+            draggable={true}
+            onDragStart={(e) => {
+              e.dataTransfer.setData('text/node-id', child.id)
+              try {
+                e.dataTransfer.effectAllowed = 'move'
+              } catch {}
+            }}
+            onClick={(e) => {
+              // Stop propagation so canvas handler can run with modifiers
+              e.stopPropagation()
+              setSelectedChild(child.id)
+            }}
+            onDoubleClick={(e) => {
+              e.stopPropagation()
+              // open child in fullscreen directly
+              onUpdate && onUpdate(child.id, { view: 'fullscreen' })
+            }}
+          >
+            <div style={{ pointerEvents: 'none', padding: 8 }}>
+              <CompactThumb type={child.type} title={child.title} label={child.content} />
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
     </div>
   )
