@@ -6,9 +6,10 @@ import { CompactThumb } from './NodeIcons'
 type FolderNodeProps = NodeProps & {
   allNodes?: BaseNode[]
   onAddToFolder?: (childId: string, folderId: string) => void
+  onClearSelection?: () => void
 }
 
-const FolderNode: React.FC<FolderNodeProps> = ({ node, onUpdate, allNodes, onAddToFolder }) => {
+const FolderNode: React.FC<FolderNodeProps> = ({ node, onUpdate, allNodes, onAddToFolder, onSelect, onClearSelection }) => {
   const nodesMap = useMemo(() => {
     const map: Record<string, BaseNode> = {}
     ;(allNodes || []).forEach((n) => {
@@ -103,9 +104,21 @@ const FolderNode: React.FC<FolderNodeProps> = ({ node, onUpdate, allNodes, onAdd
           alignItems: 'start',
           gridAutoRows: 'min-content',
         }}
+        // Prevent clicks on the folder content area from bubbling to the canvas
+        // so only the header (data-drag-handle) remains interactive for selection,
+        // dragging, resizing and the floating action button. Child items still
+        // handle their own clicks (they stop propagation themselves).
+        onPointerDown={(e) => {
+          e.stopPropagation()
+        }}
+        onMouseDown={(e) => {
+          e.stopPropagation()
+        }}
         onClick={() => {
-          // clicking on the folder background clears any child selection
+          // clicking on the folder background clears any local child selection
           setSelectedChild(null)
+          // and optionally clear global selection (notify canvas)
+          if (onClearSelection) onClearSelection()
         }}
       >
         {children.map((child) => (
@@ -129,9 +142,14 @@ const FolderNode: React.FC<FolderNodeProps> = ({ node, onUpdate, allNodes, onAdd
               } catch {}
             }}
             onClick={(e) => {
-              // Stop propagation so canvas handler can run with modifiers
+              // Stop propagation to keep event handling local, then also
+              // notify canvas selection so folder deselects and child becomes selected.
               e.stopPropagation()
               setSelectedChild(child.id)
+              try {
+                // call the canvas-level onSelect passed via props
+                onSelect && onSelect(child.id)
+              } catch {}
             }}
             onDoubleClick={(e) => {
               e.stopPropagation()

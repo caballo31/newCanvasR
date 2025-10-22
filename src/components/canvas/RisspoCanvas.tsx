@@ -567,35 +567,47 @@ const RisspoCanvas: React.FC = () => {
     // Ignore clicks on overlays/modal layers
     if ((e.target as HTMLElement).closest('[data-overlay]')) return
 
-    // If clicked on a node header -> select + prepare to drag
+    // If clicked on a node header -> select or toggle resize-mode; allow drag-on-hold for all nodes
     const headerEl = target.closest('[data-drag-handle]') as HTMLElement | null
     if (headerEl) {
       const nodeElement = headerEl.closest('[data-node-id]') as HTMLElement | null
       const nodeId = nodeElement?.dataset.nodeId
       if (nodeId) {
-        // Clicking a header should focus the window but not change internal
-        // child selection for window-like nodes. Allow modifier-based toggle.
         const clickedNode = nodes.find((n) => n.id === nodeId)
         if (e.shiftKey || e.altKey) {
           toggleSelection(nodeId)
           return
         }
+
         const isWindowLike = clickedNode && (clickedNode.view === 'window' || clickedNode.view === 'fullscreen')
-        if (!isWindowLike) {
-          const isMulti = selectedIds.includes(nodeId) && selectedIds.length > 1
+        const alreadySelected = selectedIds.includes(nodeId)
+
+        // First click on header: select (shows toolbar). Second click (when already selected)
+        // toggles headerActive to reveal resize handles for window-like nodes.
+        if (isWindowLike) {
+          if (!alreadySelected) {
+            setSingleSelection(nodeId)
+            // do not enable resize handles yet; toolbar will appear
+            setHeaderActive(null)
+          } else {
+            // toggle headerActive to show/hide resize handles
+            setHeaderActive((prev) => (prev === nodeId ? null : nodeId))
+          }
+        } else {
+          // non-window (compact) keep existing behavior: select and allow body drag
+          const isMulti = alreadySelected && selectedIds.length > 1
           if (!isMulti) {
             setSingleSelection(nodeId)
           } else {
             setSelectedNode(nodeId)
           }
-        } else {
-          // focus window without altering selection of internal children
-          setSelectedNode(nodeId)
         }
-        setHeaderActive(nodeId)
-  const nodeLookup = nodes.find((n) => n.id === nodeId)
+
+        // If the header click should start dragging immediately (click+drag),
+        // start the drag preselect/drag sequence as before. We treat a header
+        // click as an intention to drag if user moves the pointer.
+        const nodeLookup = nodes.find((n) => n.id === nodeId)
         if (nodeLookup) {
-          // If we clicked any node that is part of a multi-selection, start a group drag
           if (selectedIds.length > 1 && selectedIds.includes(nodeId)) {
             const items = selectedIds
               .map((id) => {
@@ -737,12 +749,8 @@ const RisspoCanvas: React.FC = () => {
         if (target.closest('[data-drag-handle]') || target.closest('[data-child-id]')) {
           // let header/child logic above handle it
         } else {
-          // clear selection of nodes whose parent === this window, keep global selection
-          const remaining = selectedIds.filter((id) => {
-            const n = nodes.find((nn) => nn.id === id)
-            return !(n && n.parent === nodeAt.id)
-          })
-          dispatchAction({ type: 'SET_SELECTED', ids: remaining })
+          // Clicks on the body of a window-like node should NOT modify selection.
+          // Selection and drag should be handled exclusively by the header.
           return
         }
       }
@@ -1358,6 +1366,7 @@ const RisspoCanvas: React.FC = () => {
                 onAddToFolder={(childId: string, folderId: string) => {
                   dispatchAction({ type: 'ADD_TO_FOLDER', childId, folderId })
                 }}
+                onClearSelection={() => dispatchAction({ type: 'SELECT_ONE', id: null })}
               />
             </div>
 

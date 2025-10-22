@@ -13,6 +13,7 @@ interface NodeFactoryProps extends Omit<NodeProps, 'node'> {
   onToggleToWindow?: (nodeId: string) => void
   externalEditing?: boolean
   onEditingDone?: () => void
+  onClearSelection?: () => void
 }
 
 const NodeFactoryComponent: React.FC<NodeFactoryProps> = (props) => {
@@ -172,6 +173,7 @@ const NodeFactoryComponent: React.FC<NodeFactoryProps> = (props) => {
             node={node}
             allNodes={props.allNodes}
             onAddToFolder={props.onAddToFolder}
+            onClearSelection={props.onClearSelection}
           />
         </Suspense>
       )
