@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useRef, useEffect } from 'react'
 import { Folder as FolderIcon } from 'lucide-react'
 import { NodeProps, BaseNode } from '../types/canvas'
 import { CompactThumb } from './NodeIcons'
@@ -24,6 +24,37 @@ const FolderNode: React.FC<FolderNodeProps> = ({ node, onUpdate, allNodes, onAdd
 
   const isWindowLike = node.view === 'window' || node.view === 'fullscreen'
   const [selectedChild, setSelectedChild] = useState<string | null>(null)
+  const holderRef = useRef<HTMLDivElement | null>(null)
+
+  // Detect clicks outside the folder content to clear local child selection.
+  useEffect(() => {
+    const onPointerDown = (e: PointerEvent) => {
+      const root = holderRef.current
+      if (!root) return
+
+      // Use composedPath when available (covers Shadow DOM / portals)
+      const path = (e.composedPath && typeof e.composedPath === 'function') ? e.composedPath() : [e.target]
+      // If any element in the path is the root, it's an inside click
+      for (const el of path as EventTarget[]) {
+        try {
+          if (el === root || (el instanceof Node && root.contains(el as Node))) {
+            return
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      // Fallback: if target is not inside root, clear selection
+      const target = e.target as Node | null
+      if (target && root && !root.contains(target)) {
+        setSelectedChild(null)
+      }
+    }
+
+    window.addEventListener('pointerdown', onPointerDown, true)
+    return () => window.removeEventListener('pointerdown', onPointerDown, true)
+  }, [])
 
   // Compact view: icon + name
   if (!isWindowLike) {
@@ -64,6 +95,7 @@ const FolderNode: React.FC<FolderNodeProps> = ({ node, onUpdate, allNodes, onAdd
     >
       {/* Content area (offset by 56px top for header, 12px padding) */}
       <div
+        ref={holderRef}
         className="w-full h-full overflow-auto grid grid-cols-3 gap-2"
         style={{
           padding: 12,
