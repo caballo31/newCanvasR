@@ -53,3 +53,34 @@ If you open the repo via VS Code Remote - WSL, you can run the task:
 - Terminal > Run Task > "Web: Dev (Remote WSL)"
 
 See `MIGRATE_WSL.md` at the repo root for a complete migration guide.
+
+## Demo: "Resumir selección" (MVP)
+
+Requisitos:
+
+- Suministrá tu propia clave de OpenAI (BYO-key).
+
+Configuración:
+
+- Opción A: archivo `.env.local` con:
+
+  ```bash
+  VITE_OPENAI_API_KEY=sk-xxxxx
+  ```
+
+- Opción B: en la consola del navegador antes de ejecutar la acción:
+
+  ```js
+  window.OPENAI_API_KEY = 'sk-xxxxx'
+  ```
+
+Uso:
+
+1. Seleccioná 1–3 nodos de texto en el canvas (que tengan contenido).
+2. En el panel derecho "Automatizar", clic en "Resumir selección".
+3. El panel "Jobs" (abajo a la derecha) muestra el estado; al finalizar, verás un nuevo nodo de texto con título, resumen y tags.
+
+Notas:
+
+- Modelo por defecto: `gpt-4o-mini`. Timeout: 20s.
+- En caso de error (key faltante, CORS o formato), el job termina en `error` y se muestra el mensaje.

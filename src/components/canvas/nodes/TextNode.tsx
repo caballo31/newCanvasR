@@ -67,17 +67,24 @@ const TextNode: React.FC<TextNodeExProps> = ({ node, onEdit, externalEditing, on
       {isWindow ? (
         <div className="w-full h-full" style={{ boxSizing: 'border-box' }}>
           {!isEditing ? (
-            <div
-              className="w-full h-full p-2 bg-yellow-50 rounded-md overflow-auto"
+            <div className="w-full h-full flex flex-col gap-2 p-2 bg-yellow-50 rounded-md overflow-auto"
               style={{
-                whiteSpace: 'pre-wrap',
                 color: '#1f2937',
                 fontSize: 14,
                 boxShadow: 'inset 0 1px 0 rgba(0,0,0,0.02)',
               }}
               onDoubleClick={() => setIsEditing(true)}
             >
-              {node.content}
+              <div style={{ whiteSpace: 'pre-wrap' }}>{node.content}</div>
+              {Array.isArray((node as any).tags) && (node as any).tags.length > 0 && (
+                <div className="mt-auto pt-2 border-t border-yellow-100 flex flex-wrap gap-1">
+                  {((node as any).tags as string[]).map((t, i) => (
+                    <span key={i} className="px-2 py-0.5 text-[11px] rounded-full bg-yellow-100 text-yellow-800 border border-yellow-200">
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
             <div style={{ position: 'relative', width: '100%', height: '100%' }}>

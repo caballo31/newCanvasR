@@ -7,6 +7,8 @@ export interface BaseNode {
   height: number
   content?: string
   title?: string
+  // optional tags for AI-generated summaries or user metadata
+  tags?: string[]
   file?: File | null
   fileUrl?: string
   isSelected?: boolean

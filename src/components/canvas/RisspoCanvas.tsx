@@ -5,6 +5,8 @@ import NodeFactory from './nodes/NodeFactory'
 import ResizeHandles from './nodes/ResizeHandles'
 import FloatingToolbar from './FloatingToolbar'
 import Sidebar from '../ui/Sidebar'
+import AutomatePanel from '../ui/AutomatePanel'
+import JobsPanel from '../ui/JobsPanel'
 import TopBar from '../ui/TopBar'
 import Dock from '../ui/Dock'
 import FullscreenOverlay from './FullscreenOverlay'
@@ -16,6 +18,8 @@ import { orderByZStack, getVisualSize, getZIndexFor } from '../../lib/zstack'
 import { serializeState, deserializeState } from '../../lib/persistence'
 import { toWorld, findDropTarget } from '../../lib/dndService'
 import { canvasReducer, type CanvasModel, type CanvasAction } from '../../stores/canvasReducer'
+import { summarizeSelection } from '../../transformers/summarizeSelection'
+import { useJobsStore } from '../../stores/jobsStore'
 import { duplicateNode as duplicateNodeState, updateNodeById, centerViewportOnContent } from '../../stores/canvasState'
 
 const RisspoCanvas: React.FC = () => {
@@ -94,6 +98,12 @@ const RisspoCanvas: React.FC = () => {
   // Hover-open folder target when dragging
   const [hoverFolderId, setHoverFolderId] = useState<string | null>(null)
   const hoverTimerRef = useRef<number | null>(null)
+
+  // Jobs store
+  const createJob = useJobsStore((s) => s.createJob)
+  const setJobRunning = useJobsStore((s) => s.setRunning)
+  const setJobOk = useJobsStore((s) => s.setOk)
+  const setJobError = useJobsStore((s) => s.setError)
 
   // Reducer dispatch helper: ensure sequential, atomic updates using functional setState
   const viewportRef = useRef(viewport)
@@ -231,6 +241,34 @@ const RisspoCanvas: React.FC = () => {
       dispatchAction({ type: 'UPDATE_NODE', id, patch: { content: '<p>New HTML</p>', title: 'HTML' } })
     }
     bringToFront(id)
+  }
+
+  // AI: run summarize selection for 1-3 Text nodes
+  const runSummarizeSelection = async () => {
+    const selectedText = nodes
+      .filter((n) => selectedIds.includes(n.id) && n.type === 'text' && (n.content || '').trim().length > 0)
+      .map((n) => ({ title: n.title, content: n.content || '' }))
+    if (selectedText.length === 0 || selectedText.length > 3) return
+
+    const jobId = createJob({ kind: 'summarize-selection', meta: { model: 'gpt-4o-mini', inputCount: selectedText.length } })
+    try {
+      setJobRunning(jobId)
+      const out = await summarizeSelection(selectedText, 'gpt-4o-mini', 0.2)
+      // Create a new text node with title/content/tags
+      const dims = getWindowSize('text')
+      const center = viewportCenterOnCanvas(viewport, window.innerWidth, window.innerHeight)
+      const id = generateId()
+      const xTL = Math.round((center.x - dims.width / 2) / GRID) * GRID
+      const yTL = Math.round((center.y - dims.height / 2) / GRID) * GRID
+      dispatchAction({ type: 'CREATE_NODE', nodeType: 'text', at: { x: xTL + dims.width / 2, y: yTL + dims.height / 2 }, openInWindow: true, id })
+      dispatchAction({ type: 'UPDATE_NODE', id, patch: { title: out.title, content: out.summary, tags: out.tags } as any })
+      bringToFront(id)
+      setJobOk(jobId)
+    } catch (err: any) {
+      setJobError(jobId, err?.message || String(err))
+      // Optional: console error
+      try { console.error(err) } catch {}
+    }
   }
   const deleteNode = (nodeId: string): void => {
     // Reuse existing per-node deletion behavior to preserve URL revocation
@@ -719,6 +757,8 @@ const RisspoCanvas: React.FC = () => {
           toggleSelection(clickedId)
           return
         }
+
+          
         const alreadySelected = selectedIds.includes(clickedId)
         if (!alreadySelected) {
           // preselect only that node
@@ -1632,6 +1672,13 @@ const RisspoCanvas: React.FC = () => {
         onNewHTML={() => createNode('html')}
         onNewFolder={() => createNode('folder')}
       />
+
+      {/* Automate + Jobs */}
+      <AutomatePanel
+        canRun={(function(){ const c = nodes.filter((n)=> selectedIds.includes(n.id) && n.type==='text' && (n.content||'').trim().length>0).length; return c>=1 && c<=3 })()}
+        onRun={runSummarizeSelection}
+      />
+      <JobsPanel />
 
       {/* Canvas infinito */}
       <div
