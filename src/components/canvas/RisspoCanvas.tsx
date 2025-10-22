@@ -416,6 +416,11 @@ const RisspoCanvas: React.FC = () => {
       }
 
       if (e.key === 'Delete' || e.key === 'Backspace') {
+        // If the user is typing in an input or we are in an explicit node-editing
+        // mode, treat Delete/Backspace as text operations only and DO NOT delete nodes.
+        if (isTextInputActive() || editingNode || pendingEditNode) {
+          return
+        }
         if (selectedIds.length > 0) {
           e.preventDefault()
           selectedIds.forEach((id) => deleteNode(id))
@@ -1401,6 +1406,9 @@ const RisspoCanvas: React.FC = () => {
                   setSelectedNode(id)
                 }}
                 onEnterFullscreen={(id) => setFullscreen(id)}
+                onSaveTitle={(id, value) => {
+                  updateNode(id, { title: value })
+                }}
               />
             )}
 

@@ -8,6 +8,7 @@ interface WindowHeaderProps {
   onMinimize: (nodeId: string) => void
   onMaximize: (nodeId: string) => void
   onEnterFullscreen: (nodeId: string) => void
+  onSaveTitle?: (nodeId: string, value: string) => void
 }
 
 const WindowHeader: React.FC<WindowHeaderProps> = ({
@@ -17,6 +18,7 @@ const WindowHeader: React.FC<WindowHeaderProps> = ({
   onMinimize,
   onMaximize,
   onEnterFullscreen,
+  onSaveTitle,
 }) => {
   return (
     <div
@@ -42,8 +44,13 @@ const WindowHeader: React.FC<WindowHeaderProps> = ({
       onDoubleClick={(e) => {
         e.stopPropagation()
         const target = e.target as HTMLElement
+        // If the title text was double-clicked, start title edit
         if (target.closest('[data-title]')) {
           setTitleEdit({ id: node.id, value: (node.title || node.content || '') as string })
+          return
+        }
+        // If we're currently editing this node's title, don't treat clicks as enter-fullscreen.
+        if (titleEdit.id === node.id) {
           return
         }
         if (node.view === 'window') {
@@ -80,7 +87,22 @@ const WindowHeader: React.FC<WindowHeaderProps> = ({
                 onPointerDown={(e) => e.stopPropagation()}
                 style={{ fontSize: 13, padding: '6px 10px', borderRadius: 8, border: '1px solid #e5e7eb' }}
               />
-              {/* Save handled externally from toolbar or context; header just edits */}
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (onSaveTitle) {
+                    onSaveTitle(node.id, titleEdit.value)
+                  }
+                  // Clear local title edit state
+                  setTitleEdit({ id: null, value: '' })
+                }}
+                className="ml-1 px-3 py-1 rounded bg-orange-500 text-white text-sm hover:bg-orange-600"
+              >
+                Guardar
+              </button>
             </div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
