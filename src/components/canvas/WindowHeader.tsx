@@ -99,9 +99,11 @@ const WindowHeader: React.FC<WindowHeaderProps> = ({
                   // Clear local title edit state
                   setTitleEdit({ id: null, value: '' })
                 }}
-                className="ml-1 px-3 py-1 rounded bg-orange-500 text-white text-sm hover:bg-orange-600"
+                onKeyDown={(e) => e.stopPropagation()}
+                className="px-3 py-1 text-white"
+                style={{ background: '#F68C1E', borderRadius: 8, border: 'none' }}
               >
-                Guardar
+                Save
               </button>
             </div>
           ) : (
