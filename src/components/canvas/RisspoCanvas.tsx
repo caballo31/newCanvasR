@@ -1,10 +1,12 @@
 import React, { useRef, useEffect, useState } from 'react'
-import { Button } from '../ui/button'
-import { Type, FileImage, Code, Folder } from 'lucide-react'
+// import { Button } from '../ui/button'
 import { BaseNode, Viewport } from './types/canvas'
 import NodeFactory from './nodes/NodeFactory'
 import ResizeHandles from './nodes/ResizeHandles'
 import FloatingToolbar from './FloatingToolbar'
+import Sidebar from '../ui/Sidebar'
+import TopBar from '../ui/TopBar'
+import Dock from '../ui/Dock'
 import FullscreenOverlay from './FullscreenOverlay'
 import WindowHeader from './WindowHeader'
 import { generateId } from '../../lib/utils'
@@ -1528,6 +1530,18 @@ const RisspoCanvas: React.FC = () => {
     })
   }
 
+  // Center viewport on a specific node and select it
+  const centerOnNode = (nodeId: string) => {
+    const n = nodes.find((x) => x.id === nodeId)
+    if (!n) return
+    const size = getVisualSize(n)
+    const cx = n.x + size.width / 2
+    const cy = n.y + size.height / 2
+    setViewport((prev) => ({ ...prev, x: window.innerWidth / 2 - cx * prev.scale, y: window.innerHeight / 2 - cy * prev.scale }))
+    bringToFront(nodeId)
+    dispatchAction({ type: 'SELECT_ONE', id: nodeId })
+  }
+
   return (
     <div
       className="w-full h-full bg-gray-50 relative overflow-hidden"
@@ -1544,6 +1558,35 @@ const RisspoCanvas: React.FC = () => {
         handleDrop(e)
       }}
     >
+      <TopBar
+        onOpen={() => { (importRef as any).current?.click() }}
+        onSave={() => {
+          const data = serializeState(nodes, viewport)
+          const blob = new Blob([data], { type: 'application/json' })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = 'risspo-canvas-state.json'
+          a.click()
+          URL.revokeObjectURL(url)
+        }}
+        onCenter={() => {
+          setViewport((prev) => centerViewportOnContent(prev, nodes, window.innerWidth, window.innerHeight))
+        }}
+        onExport={() => {
+          const data = serializeState(nodes, viewport)
+          const blob = new Blob([data], { type: 'application/json' })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = 'risspo-canvas-state.json'
+          a.click()
+          URL.revokeObjectURL(url)
+        }}
+      />
+      {/* Sidebar: lists nodes with subtle compact/expanded behavior */}
+      <Sidebar nodes={nodes} selectedIds={selectedIds} onSelectAndCenter={centerOnNode} />
+
       {/* Input oculto para archivos */}
       <input
         type="file"
@@ -1576,97 +1619,12 @@ const RisspoCanvas: React.FC = () => {
         className="hidden"
       />
 
-      {/* Toolbar minimalista */}
-  <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-sm border border-gray-200 p-2" style={{ zIndex: 10000 }}>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onMouseDown={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => { e.stopPropagation(); createNode('text') }}
-            className="flex items-center gap-2 hover:bg-gray-100"
-          >
-            <Type className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onMouseDown={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => { e.stopPropagation(); openFileSelector() }}
-            className="flex items-center gap-2 hover:bg-gray-100"
-          >
-            <FileImage className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onMouseDown={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => { e.stopPropagation(); createNode('html') }}
-            className="flex items-center gap-2 hover:bg-gray-100"
-          >
-            <Code className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onMouseDown={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => { e.stopPropagation(); createNode('folder') }}
-            className="flex items-center gap-2 hover:bg-gray-100"
-          >
-            <Folder className="w-4 h-4" />
-          </Button>
-          {/* Center view */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setViewport((prev) =>
-                centerViewportOnContent(prev, nodes, window.innerWidth, window.innerHeight)
-              )
-            }}
-            className="flex items-center gap-2 hover:bg-gray-100"
-            title="Centrar vista"
-          >
-            <span className="text-xs">Center</span>
-          </Button>
-          {/* Export state */
-          }
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              const data = serializeState(nodes, viewport)
-              const blob = new Blob([data], { type: 'application/json' })
-              const url = URL.createObjectURL(blob)
-              const a = document.createElement('a')
-              a.href = url
-              a.download = 'risspo-canvas-state.json'
-              a.click()
-              URL.revokeObjectURL(url)
-            }}
-            className="flex items-center gap-2 hover:bg-gray-100"
-            title="Exportar estado"
-          >
-            <span className="text-xs">Export</span>
-          </Button>
-          {/* Import state */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              (importRef as any).current?.click()
-            }}
-            className="flex items-center gap-2 hover:bg-gray-100"
-            title="Importar estado"
-          >
-            <span className="text-xs">Import</span>
-          </Button>
-        </div>
-      </div>
+      <Dock
+        onNewText={() => createNode('text')}
+        onNewImage={() => openFileSelector()}
+        onNewHTML={() => createNode('html')}
+        onNewFolder={() => createNode('folder')}
+      />
 
       {/* Canvas infinito */}
       <div
