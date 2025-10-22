@@ -74,7 +74,8 @@ export function canvasReducer(state: CanvasModel, action: CanvasAction): CanvasM
         view: action.openInWindow ? 'window' : 'compact',
         ...(action.nodeType === 'folder' ? { children: [] as string[] } : {}),
       }
-      return { ...state, nodes: [...state.nodes, newNode], selectedIds: [newNode.id] }
+  // Do not auto-select newly created nodes — keep current selection as-is.
+  return { ...state, nodes: [...state.nodes, newNode] }
     }
     case 'UPDATE_NODE': {
       return { ...state, nodes: updateNodeById(state.nodes, action.id, action.patch) }
