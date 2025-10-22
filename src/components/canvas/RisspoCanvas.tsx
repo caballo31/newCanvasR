@@ -1244,10 +1244,11 @@ const RisspoCanvas: React.FC = () => {
     if (!node) return
     // Bring to front in its band
     bringToFront(nodeId)
-    // Ensure the node is the single global selection before starting drag.
-    // This avoids a race where the preselect timer fires before selectedNode/selectedIds
-    // have propagated, preventing move logic from recognizing the dragged node.
-    dispatchAction({ type: 'SELECT_ONE', id: nodeId })
+    // If the node is not already part of the current selection, make it the single selection.
+    // Do NOT override an existing multi-selection — preserving group-drag behavior.
+    if (!selectedIds.includes(nodeId)) {
+      dispatchAction({ type: 'SELECT_ONE', id: nodeId })
+    }
     // Mark drag started
     preselectRef.current = preselectRef.current ? { ...preselectRef.current, state: 'dragging', timer: null } : { state: 'dragging', nodeId, downX: eClientX || 0, downY: eClientY || 0, timer: null, startTime: Date.now() }
     dragMovedRef.current = false
