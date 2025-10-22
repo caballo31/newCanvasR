@@ -12,11 +12,18 @@ type SidebarProps = {
   onSaveTitle: (id: string, value: string) => void
 }
 
+const PALETTE = {
+  text: '#3B82F6', // blue-500
+  html: '#F97316', // orange-500
+  media: '#10B981', // emerald-500
+  folder: '#FBBF24', // amber-400
+}
+
 const TYPE_META: Record<BaseNode['type'], { label: string; color: string }> = {
-  text: { label: 'text', color: '#6AA9FF' },
-  html: { label: 'html', color: '#F68C1E' },
-  media: { label: 'image', color: '#4ADE80' },
-  folder: { label: 'folder', color: '#F4D06F' },
+  text: { label: 'text', color: PALETTE.text },
+  html: { label: 'html', color: PALETTE.html },
+  media: { label: 'image', color: PALETTE.media },
+  folder: { label: 'folder', color: PALETTE.folder },
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ nodes, selectedIds, onSelectAndCenter, titleEdit, setTitleEdit, onSaveTitle }) => {
