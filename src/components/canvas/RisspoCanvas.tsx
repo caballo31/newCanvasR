@@ -1585,7 +1585,14 @@ const RisspoCanvas: React.FC = () => {
         }}
       />
       {/* Sidebar: lists nodes with subtle compact/expanded behavior */}
-      <Sidebar nodes={nodes} selectedIds={selectedIds} onSelectAndCenter={centerOnNode} />
+      <Sidebar
+        nodes={nodes}
+        selectedIds={selectedIds}
+        onSelectAndCenter={centerOnNode}
+        titleEdit={titleEdit}
+        setTitleEdit={(v) => setTitleEdit(v)}
+        onSaveTitle={(id, v) => updateNode(id, { title: v })}
+      />
 
       {/* Input oculto para archivos */}
       <input

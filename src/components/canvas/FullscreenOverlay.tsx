@@ -51,7 +51,8 @@ const FullscreenOverlay: React.FC<FullscreenOverlayProps> = ({
       style={{
         position: 'fixed',
         inset: 0,
-        zIndex: 50,
+        // ensure fullscreen overlay is above all floating chrome (topbar, dock, sidebar)
+        zIndex: 12000,
         background: 'rgba(0,0,0,0.3)',
         display: 'flex',
         alignItems: 'center',

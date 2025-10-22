@@ -1,11 +1,15 @@
 import React, { useMemo, useRef, useState } from 'react'
 import type { BaseNode } from '../canvas/types/canvas'
-import { List as ListIcon, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 type SidebarProps = {
   nodes: BaseNode[]
   selectedIds: string[]
   onSelectAndCenter: (id: string) => void
+  // title editing
+  titleEdit: { id: string | null; value: string }
+  setTitleEdit: (v: { id: string | null; value: string }) => void
+  onSaveTitle: (id: string, value: string) => void
 }
 
 const TYPE_META: Record<BaseNode['type'], { label: string; color: string }> = {
@@ -15,12 +19,25 @@ const TYPE_META: Record<BaseNode['type'], { label: string; color: string }> = {
   folder: { label: 'folder', color: '#F4D06F' },
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ nodes, selectedIds, onSelectAndCenter }) => {
+const Sidebar: React.FC<SidebarProps> = ({ nodes, selectedIds, onSelectAndCenter, titleEdit, setTitleEdit, onSaveTitle }) => {
   const [compact, setCompact] = useState(false)
   const shellRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ active: boolean; startX: number } | null>(null)
 
-  const list = useMemo(() => nodes.filter((n) => !n.parent && n.view !== 'fullscreen'), [nodes])
+  const getCreatedAt = (n: BaseNode) => {
+    try {
+      const m = /shape:node_(\d+)_/.exec(n.id)
+      if (m && m[1]) return parseInt(m[1], 10)
+    } catch {}
+    return 0
+  }
+
+  const list = useMemo(() => {
+    return nodes
+      .filter((n) => !n.parent && n.view !== 'fullscreen')
+      .slice()
+      .sort((a, b) => getCreatedAt(a) - getCreatedAt(b))
+  }, [nodes])
 
   const handlePointerDown = (e: React.PointerEvent) => {
     const shell = shellRef.current
@@ -67,10 +84,7 @@ const Sidebar: React.FC<SidebarProps> = ({ nodes, selectedIds, onSelectAndCenter
         <div data-grip className="mx-auto mt-2 mb-1 w-[22px] h-[6px] rounded-full bg-gray-200" />
         {/* Head */}
         <div className="flex items-center gap-2 px-2 py-2 border-b border-gray-200">
-          <ListIcon className="w-5 h-5 text-gray-600" />
-          {!compact && (
-            <span className="text-sm text-gray-700">List</span>
-          )}
+          {!compact && <span className="text-sm text-gray-700">List</span>}
           <button
             type="button"
             title="Compactar / Expandir"
@@ -90,13 +104,64 @@ const Sidebar: React.FC<SidebarProps> = ({ nodes, selectedIds, onSelectAndCenter
               return (
                 <button
                   key={n.id}
-                  className={`flex items-center gap-2 px-2 py-2 rounded-xl text-left ${isSel ? 'bg-gray-100' : 'hover:bg-gray-50'}`}
+                  className={`flex items-center ${compact ? 'justify-center px-1 py-2' : 'gap-2 px-2 py-2'} rounded-xl ${isSel ? 'bg-gray-100' : 'hover:bg-gray-50'}`}
                   onClick={() => onSelectAndCenter(n.id)}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation()
+                    if (!compact) setTitleEdit({ id: n.id, value: title })
+                  }}
                   title={title}
+                  aria-label={title}
                 >
-                  <span className="inline-block w-2 h-2 rounded-full" style={{ background: meta.color, boxShadow: 'inset 0 0 0 1px #0001' }} />
-                  <span className={compact ? 'opacity-0 -translate-x-1 pointer-events-none transition-all' : 'text-[13px] truncate transition-all'}>{title}</span>
-                  <span className={compact ? 'opacity-0 -translate-x-1 pointer-events-none transition-all ml-auto' : 'ml-auto text-[11px] text-gray-500 transition-all'}>{meta.label}</span>
+                  <span
+                    className="inline-block rounded-full"
+                    style={{
+                      width: compact ? 12 : 8,
+                      height: compact ? 12 : 8,
+                      background: meta.color,
+                      boxShadow: 'inset 0 0 0 1px #0001',
+                    }}
+                  />
+                  {!compact && (
+                    <>
+                      {titleEdit.id === n.id ? (
+                        <input
+                          autoFocus
+                          value={titleEdit.value}
+                          onChange={(e) => setTitleEdit({ id: n.id, value: e.target.value })}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onDoubleClick={(e) => e.stopPropagation()}
+                          onBlur={() => {
+                            if (titleEdit.id === n.id) {
+                              onSaveTitle(n.id, titleEdit.value)
+                              setTitleEdit({ id: null, value: '' })
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              onSaveTitle(n.id, titleEdit.value)
+                              setTitleEdit({ id: null, value: '' })
+                            } else if (e.key === 'Escape') {
+                              setTitleEdit({ id: null, value: '' })
+                            }
+                          }}
+                          className="px-2 py-1 rounded-md border border-gray-200 text-[13px] w-full"
+                        />
+                      ) : (
+                        <span
+                          className="text-[13px] truncate transition-all"
+                          onDoubleClick={(e) => {
+                            e.stopPropagation()
+                            setTitleEdit({ id: n.id, value: title })
+                          }}
+                        >
+                          {title}
+                        </span>
+                      )}
+                      <span className="ml-auto text-[11px] text-gray-500 transition-all">{meta.label}</span>
+                    </>
+                  )}
                 </button>
               )
             })}
